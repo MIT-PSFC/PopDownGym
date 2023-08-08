@@ -1,0 +1,3 @@
+[submodule "pop_down_gym/contrax"]
+	path = contrax
+	url = git@github.com:MIT-PSFC/contrax.git

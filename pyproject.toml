@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "pop-down-gym"
+version = "0.1.0"
+description = ""
+authors = ["Allen Wang <allenw@mit.edu>"]
+readme = "README.md"
+packages = [{include = "pop_down_gym"}]
+
+[tool.poetry.dependencies]
+python = ">=3.9, <3.10"
+matlabengine = "9.12.19"
+scipy = "^1.10.1"
+pytest = "^7.4.0"
+jaxlib = {version = "^0.4.14+cuda12.cudnn89", source = "jax_cuda"}
+jax = "^0.4.14"
+gymnasium = "^0.29.0"
+
+# Submodule.
+contrax = { path = "contrax/", develop = true }
+debugpy = "1.6.7"
+black = "^23.7.0"
+
+[[tool.poetry.source]]
+name = "jax_cuda"
+url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
+priority = "primary"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
