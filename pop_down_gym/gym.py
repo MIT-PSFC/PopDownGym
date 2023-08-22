@@ -1,16 +1,24 @@
 import gymnasium as gym
-import numpy as np
+import jax
+import jax.numpy as jnp
+from functools import partial
+from pop_down_gym.utils import remap_range
+from pop_down_gym.model import Model
+from pop_down_gym.constants import ShotConstants
+from pop_down_gym.reward import RewardModel
+import pop_down_gym.physics as physics
+from contrax.simulate import SimFFControl
 
-class RdPopGym:
-    STATE_RANGES = {
-        "li": (0.5, 6.0),       # Normalized internal inductance [-]
-        "Ip_MA": (1.0, 9.0),    # Plasma current [MA]
-        "vc_minus_vb": (-5.0, 5.0),       # vc-vb as defined by Romero [V]
-        "Wth": (1e5, 3e7),      # Stored thermal energy [J]
+
+class RdPopGym(gym.Env):
+    CONT_STATE_RANGES = {
+        "li": (0.5, 6.0),  # Normalized internal inductance [-]
+        "Ip_MA": (1.0, 9.0),  # Plasma current [MA]
+        "vc_minus_vb": (-5.0, 5.0),  # vc-vb as defined by Romero [V]
+        "Wth": (1e5, 3e7),  # Stored thermal energy [J]
         "nfuel19_vol": (1.0, 30.0),  # Volume averaged fuel density [10^19 m^-3]
-        "Paux": (0.0, 25.0e6),    # Auxiliary heating power [MW]
-        "gs": (0.0, 1.0),     # Geometry evolution parameter [0]
-        "HMode": (0, 1)         # H-mode flag [0, 1]
+        "Paux": (0.0, 25.0e6),  # Auxiliary heating power [MW]
+        "gs": (0.0, 1.0),  # Geometry evolution parameter [0]
     }
 
     """ 
@@ -23,24 +31,35 @@ class RdPopGym:
         "Ip_MA": 2.5,
         "vc_minus_vb": 10.0,
         "Wth": 2.0,
-        "nfuel19_vol": 2.0
+        "nfuel19_vol": 2.0,
     }
     ACTION_RANGES = {
-        "dIp_dt": (-3.0, 0.0),   #
-        "dPaux_dt": (-5.0e6, 5.0e6), #
-        "fueling19": (0.0, 155.0), # Ad-hoc calculation [10^19/s]
-        "dgs_dt": (0.0, 1.0)   # Rate of evolution through geometry space [1/s]
+        "dIp_dt": (-3.0, 0.0),  #
+        "dPaux_dt": (-5.0, 5.0),  #
+        "fueling19": (0.0, 155.0),  # Ad-hoc calculation [10^19/s]
+        "dgs_dt": (0.0, 1.0),  # Rate of evolution through geometry space [1/s]
     }
+
+    DT = 0.05
 
     RANDOM_PARAM_RANGES = {
-        "MAIN_ION_DILUTION":,
-        "Zeff":,
-        "HL_FUDGE":,
-
+        "ion_dilution": (0.8, 0.95),
+        "HL_FUDGE": (0.5, 0.8),
+        "Hfactor": (0.7, 1.0),
+        "Zeff": (1.2, 1.8),
+        "Te_over_Ti": (1.0, 1.2),
+        "tau_n_factor": (7.0, 9.0),
+        "prad_mult": (2.0, 3.0),
     }
+    TIME_LIMIT = 5.0
 
-    def __init__(self):
-        self.nominal_initial_continuous_state = {
+    def __init__(
+        self, model: Model, reward_model: RewardModel, shot_constants: ShotConstants
+    ):
+        self.simulator = SimFFControl(model, dt0=1e-2)
+        self.reward_model = reward_model
+        self.shot_constants = shot_constants
+        self.nominal_initial_state = {
             "li": 0.757764,
             "Ip_MA": 8.7,
             "vc_minus_vb": 0.153183,
@@ -48,22 +67,45 @@ class RdPopGym:
             "nfuel19_vol": 27.0,
             "Paux": 14.0,
             "gs": 0.0,
-            "HMode": True
+            "Hmode": True,
         }
+        # Declare the normalized action space.
+        self.action_space = gym.spaces.Dict(
+            {
+                action_name: gym.spaces.Box(-1, 1)
+                for action_name in self.ACTION_RANGES.keys()
+            }
+        )
 
-        self.action_space = gym.spaces.Box(
-            low=-1.0*np.ones(len(self.ACTION_RANGES.keys())),
-            high=np.ones(len(self.ACTION_RANGES.keys())),
-            dtype=np.double,
+        # Declare the space of random parameters.
+        self.random_param_space = gym.spaces.Dict(
+            {
+                param_name: gym.spaces.Box(*param_range)
+                for param_name, param_range in self.RANDOM_PARAM_RANGES.items()
+            }
+        )
+
+        self.observation_space = gym.spaces.Dict(
+            {
+                "continuous": gym.spaces.Dict(
+                    {
+                        var: gym.spaces.Box(*range)
+                        for var, range in self.CONT_STATE_RANGES.items()
+                    }
+                ),
+                "Hmode": gym.spaces.Discrete(2),
+            }
         )
 
     def random_initial_state(self):
         """
         Generate a random initial state.
         """
-        state = self.nominal_initial_continuous_state
+        state = self.nominal_initial_state
         for var, percent_variation in self.RANDOM_INITIAL_STATE_PERCENT_VAR.items():
-            fractional_variation = 0.01 * percent_variation * self.np_random.uniform(low=-1.0, high=1.0)
+            fractional_variation = (
+                0.01 * percent_variation * self.np_random.uniform(low=-1.0, high=1.0)
+            )
             state[var] = state[var] + fractional_variation * state[var]
         return state
 
@@ -79,10 +121,209 @@ class RdPopGym:
         """
         self.state = self.random_initial_state()
 
+        """
+        Compute a random parameter set.
+        """
+        self.random_params = self.random_param_space.sample()
+        self.random_params = jax.tree_map(lambda val: val.squeeze(), self.random_params)
+
         info = {}
 
         return self.state_to_obs(self.state), info
 
+    def unnormalize_action(self, action: dict) -> dict:
+        """Given an action sampled from the normalized action space, unnormalize it.
 
-    def step(self, state, action):
-        pass
+        Args:
+            action (dict): _description_
+
+        Returns:
+            dict: _description_
+        """
+        for action_name, action_val in action.items():
+            action_space_range = (
+                self.action_space[action_name].low.squeeze(),
+                self.action_space[action_name].high.squeeze(),
+            )
+            action[action_name] = remap_range(
+                action_val, action_space_range, self.ACTION_RANGES[action_name]
+            )
+        return action
+
+    @partial(jax.jit, static_argnums=(0,))
+    def _step(self, state, action):
+        ts = jnp.array([0.0, self.DT])  # Time steps.
+
+        # Initial State.
+        initial_state = {
+            "li": state["li"],
+            "Ip_MA": state["Ip_MA"],
+            "vc_minus_vb": state["vc_minus_vb"],
+            "Wth": state["Wth"],
+            "nfuel19_vol": state["nfuel19_vol"],
+            "Paux": state["Paux"],
+            "gs": state["gs"],
+        }
+        # [Hmode, Hfactor, Zeff, ion_dilution, Te_over_Ti, f_dt, tau_n_factor, prad_mult]
+        params = {
+            "Hmode": state["Hmode"],
+            "Hfactor": self.random_params["Hfactor"],
+            "Zeff": self.random_params["Zeff"],
+            "ion_dilution": self.random_params["ion_dilution"],
+            "Te_over_Ti": self.random_params["Te_over_Ti"],
+            "f_dt": 0.5,
+            "tau_n_factor": self.random_params["tau_n_factor"],
+            "prad_mult": self.random_params["prad_mult"],
+        }
+
+        # SimFFControl needs controls at all time steps in "ts".
+        # Let's just assume a zero-order-hold, so constant action over the simulation step.
+        controls = jax.tree_map(lambda x: jnp.repeat(x, 2), action)
+        res = self.simulator.simulate(ts, initial_state, controls, params=params)
+
+        # Evaluate the model at the first and last time steps in debug mode to get info.
+        ys0 = jax.tree_map(lambda x: x[0], res.ys)
+        controls0 = jax.tree_map(lambda x: x[0], controls)
+        ys_last = jax.tree_map(lambda x: x[-1], res.ys)
+        controls_last = jax.tree_map(lambda x: x[-1], controls)
+        _, info0 = self.simulator.model(ys0, controls0, params, debug=True)
+        _, info = self.simulator.model(ys_last, controls_last, params, debug=True)
+
+        """
+        Determine if the HL transition occured.
+        """
+        Ploss = info["Ploss"]
+        PLH = physics.PLH_threshold(
+            info["ne19_line"] / 10,  # Convert to ne20.
+            self.shot_constants.Bphi0,
+            info["aminor"],
+            self.shot_constants.R0,
+        )
+        PHL = self.random_params["HL_FUDGE"] * PLH
+        Hmode_new = jnp.where(
+            jnp.logical_and(state["Hmode"] == 1, Ploss < PHL), 0, state["Hmode"]
+        )
+
+        state_new = {
+            "li": ys_last["li"],
+            "Ip_MA": ys_last["Ip_MA"],
+            "vc_minus_vb": ys_last["vc_minus_vb"],
+            "Wth": ys_last["Wth"],
+            "nfuel19_vol": ys_last["nfuel19_vol"],
+            "Paux": ys_last["Paux"],
+            "gs": ys_last["gs"],
+            "Hmode": Hmode_new,
+        }
+
+        beta_p = physics.pressure_to_beta_p(
+            info["pressure_vol_avg"],
+            state_new["Ip_MA"],
+            info["aminor"],
+        )
+        beta_t = physics.pressure_to_beta(
+            info["pressure_vol_avg"], self.shot_constants.Bphi0
+        )
+        beta_n = physics.betas_to_beta_n(
+            beta_p,
+            beta_t,
+            state_new["Ip_MA"],
+            info["aminor"],
+            self.shot_constants.Bphi0,
+        )
+
+        ng_frac = physics.greenwald_fraction(
+            info["ne19_line"],
+            state_new["Ip_MA"],
+            info["aminor"],
+        )
+
+        beta_p0 = physics.pressure_to_beta_p(
+            info0["pressure_vol_avg"],
+            state["Ip_MA"],
+            info0["aminor"],
+        )
+        Bv0 = physics.calc_Bv(
+            state["Ip_MA"],
+            info0["kappa_a"],
+            beta_p=beta_p0,
+            li3=state["li"],  # close enough
+            R=self.shot_constants.R0,
+            a=info0["aminor"],
+        )
+
+        Bv = physics.calc_Bv(
+            state_new["Ip_MA"],
+            info["kappa_a"],
+            beta_p=beta_p,
+            li3=state["li"],  # close enough
+            R=self.shot_constants.R0,
+            a=info["aminor"],
+        )
+
+        reward_inputs = {
+            "li": state_new["li"],
+            "Ip_MA": state_new["Ip_MA"],
+            "kappa": info["kappa_a"],
+            "beta_p": beta_p,
+            "beta_t": beta_t,
+            "beta_n": beta_n,
+            "ng_frac": ng_frac,
+            "Wdot": info["Wdot"],
+            "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.DT),
+        }
+
+        return state_new, reward_inputs
+
+    def step(self, action):
+        """
+        Step the environment forward in time.
+        """
+        unnormalized_action = self.unnormalize_action(action)
+        self.state, reward_inputs = self._step(self.state, unnormalized_action)
+        reward, reward_terms = self.reward_model.reward(reward_inputs, unnormalized_action)
+        self.time += self.DT
+
+        truncated = self.time >= self.TIME_LIMIT
+        hit_goal = reward_terms["hit_goal_reward"] > 0.0
+        obs = self.state_to_obs(self.state)
+        terminated = (
+            truncated
+            or not self.observation_space.contains(obs)
+            or hit_goal
+        )
+
+        info = {
+            "time": self.time,
+            "state": self.state,
+            "action": unnormalized_action,
+            "reward_inputs": reward_inputs,
+            "reward_terms": reward_terms,
+        }
+        return obs, reward, terminated, truncated, info
+
+    @classmethod
+    def create_default(cls):
+        model, _ = Model.create_default()
+        reward_model = RewardModel.create_default()
+        shot_constants = model.shot_constants
+        return cls(model, reward_model, shot_constants)
+
+    def state_to_obs(self, state):
+        continuous = {k:v for k, v in state.items() if k != "Hmode"}
+        hmode = state["Hmode"]
+
+        for key, val in continuous.items():
+            # Normalize.
+            continuous[key] = remap_range(val, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
+        obs = {
+            "continuous": continuous,
+            "Hmode": hmode,
+        }
+        return obs
+
+
+if __name__ == "__main__":
+    env = RdPopGym.create_default()
+    obs, info = env.reset()
+    out = env.step(env.action_space.sample())
+

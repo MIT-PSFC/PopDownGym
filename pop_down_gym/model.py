@@ -8,6 +8,8 @@ from pop_down_gym.geometry import Geometry
 from contrax.examples.plasma.li_ip.models import RomeroNNV
 
 
+
+
 class Model:
     geom: Geometry
     prof_bases: ProfileBases
@@ -28,7 +30,7 @@ class Model:
         self.lmode_prof_basis = lmode_prof_bases
         self.shot_constants = shot_constants
 
-    def __call__(self, state, control, params):
+    def __call__(self, state, control, params, debug=False):
         """
         Maps state and control to derivatives of state.
 
@@ -76,7 +78,7 @@ class Model:
         )
 
         # Compute the volume average pressure.
-        pressure_vol = physics.W_to_pressure(state["Wth"], volume)
+        pressure_vol_avg = physics.W_to_pressure(state["Wth"], volume)
 
         # ASSUMPTION:
         #   <p> = <n_e> * <T_e> + <n_i> * <T_i>
@@ -84,13 +86,12 @@ class Model:
         #   <p> = (<n_e> * Te_over_Ti + <n_i> ) * <T_i>
         # Which then implies that:
         #   <T_i> = <p>/(<n_e> * Te_over_Ti + <n_i> )
-        Ti_joule_vol = pressure_vol / (
+        Ti_joule_vol = pressure_vol_avg / (
             1e19 * ne19_vol * params["Te_over_Ti"] + 1e19 * state["nfuel19_vol"]
         )
         Te_joule_vol = params["Te_over_Ti"] * Ti_joule_vol
         Ti_kev_vol = Ti_joule_vol / constants.KEV_TO_J
         Te_kev_vol = Te_joule_vol / constants.KEV_TO_J
-
 
         Ti_kev_prof = jax.lax.select(
             params["Hmode"],
@@ -166,7 +167,20 @@ class Model:
             "Paux": control["dPaux_dt"],
             "gs": control["dgs_dt"],
         }
-        return derivatives
+
+        if debug:
+            info = {
+                "Ploss": -state["Wth"] / taue,
+                "taue": taue,
+                "ne19_line": ne19_line,
+                "kappa_a": kappa_a,
+                "aminor": aminor,
+                "pressure_vol_avg": pressure_vol_avg,
+                "Wdot": Wdot,
+            }
+            return derivatives, info
+        else:
+            return derivatives
 
     @classmethod
     def create_default(cls):

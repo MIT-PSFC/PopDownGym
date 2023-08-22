@@ -15,7 +15,7 @@ def sigmoid(x: float, c1: float, c2: float) -> float:
     return 1.0 / (1.0 + jnp.exp(-c1 * (x - c2)))
 
 
-class Reward:
+class RewardModel:
     def __init__(self, reward_params) -> None:
         self.params = reward_params
         self.limits = reward_params["limits"]

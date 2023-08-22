@@ -125,11 +125,11 @@ class TauEInput(eqx.Module):
             - 10.4,  # 10.4 MW radiated.
         )
 
-def calc_Bv(Ip: float, kappa: float, beta_p: float, li3: float, R: float, a: float) -> float:
+def calc_Bv(Ip_MA: float, kappa: float, beta_p: float, li3: float, R: float, a: float) -> float:
     """Calculate the vertical field required for radial force balance.
 
     Args:
-        Ip (float): plasma current [A].
+        Ip_MA (float): plasma current [MA].
         kappa (float): plasma elongation [-] (TODO(allenw): which definition?).
         beta_p (float): poloidal beta [-].
         li3 (float): internal inductance [-].
@@ -139,6 +139,7 @@ def calc_Bv(Ip: float, kappa: float, beta_p: float, li3: float, R: float, a: flo
     Returns:
         float: _description_
     """
+    Ip = 1e6 * Ip_MA
     MU0 = 4e-7 * jnp.pi
     Bv = (
         (MU0 * Ip)
@@ -352,3 +353,20 @@ def PLH_threshold(ne20: float, B0: float, a: float, R: float) -> float:
         float: H-mode threshold in watts.
     """
     return 2.15e6 * math.exp(1) ** 0.107 * ne20**0.782 * B0**0.772 * a**0.975 * R**0.999
+
+
+def greenwald_fraction(ne19_line_average: float, Ip_MA: float, a: float) -> float:
+    """ Compute the greenwald fraction.
+
+    Args:
+        ne19_line_average (float): _description_
+        Ip_MA (float): _description_
+        a (float): _description_
+
+    Returns:
+        float: _description_
+    """
+
+    ne20_line_average = ne19_line_average / 10.0
+    ng_max = Ip_MA / (jnp.pi * a**2)
+    return ne20_line_average / ng_max
