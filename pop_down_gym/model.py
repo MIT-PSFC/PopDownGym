@@ -191,7 +191,7 @@ class Model:
 
     @classmethod
     def create_default(cls):
-        from pop_down_gym.data.load import load_data
+        from pop_down_gym.load_data import load_data
         import equinox as eqx
 
         ds, ds_geom = load_data()

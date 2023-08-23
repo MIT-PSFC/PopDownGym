@@ -1,6 +1,6 @@
 import jax
 from pop_down_gym.geometry import Geometry
-from pop_down_gym.data.load import load_data
+from pop_down_gym.load import load_data
     
 def test_geom():
     ds = load_data()
