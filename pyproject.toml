@@ -13,12 +13,14 @@ scipy = "^1.10.1"
 pytest = "^7.4.0"
 jaxlib = {version = "^0.4.14+cuda12.cudnn89", source = "jax_cuda"}
 jax = "^0.4.14"
-gymnasium = "^0.29.0"
-
-# Submodule.
+gymnasium = "0.28.1"
 contrax = { path = "contrax/", develop = true }
 debugpy = "1.6.7"
 black = "^23.7.0"
+wandb = "^0.15.8"
+plotly = "^5.16.1"
+stable-baselines3 = "2.0.0a10"
+tensorboard = "^2.14.0"
 
 [[tool.poetry.source]]
 name = "jax_cuda"
