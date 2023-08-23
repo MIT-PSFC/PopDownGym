@@ -11,7 +11,6 @@ def test_geom():
     g = Geometry(1.85, time, aminor, kappa_a, Vp)
     gdotfun = jax.jacfwd(g)
     gdot = gdotfun(0.0)
-    import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
     test_geom()

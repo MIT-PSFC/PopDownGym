@@ -3,16 +3,14 @@ import jax.numpy as jnp
 import pop_down_gym
 import pop_down_gym.physics as physics
 from pop_down_gym import constants
-from pop_down_gym.profile import ProfileBases
+from pop_down_gym.profiles import ProfileBases
 from pop_down_gym.geometry import Geometry
 from contrax.examples.plasma.li_ip.models import RomeroNNV
 
 
-
-
 class Model:
     geom: Geometry
-    prof_bases: ProfileBases
+    hmode_prof_basis: ProfileBases
     lmode_prof_basis: ProfileBases
     li_model: RomeroNNV
 
@@ -51,7 +49,9 @@ class Model:
         # jacfwd gives derivatives of geometry parameters w.r.t. gs.
         # Multiply by dgs_dt to get derivatives of geometry parameters w.r.t. time.
         dgeom_dgs = jax.jacfwd(self.geom)(state["gs"])
-        geometry_params_dot = jax.tree_map(lambda leaf: leaf * control["dgs_dt"], dgeom_dgs)
+        geometry_params_dot = jax.tree_map(
+            lambda leaf: leaf * control["dgs_dt"], dgeom_dgs
+        )
         volume_dot = geometry_params_dot["volume"]
 
         # Compute density profiles.
@@ -61,20 +61,24 @@ class Model:
 
         nfuel19_profile = jax.lax.select(
             params["Hmode"],
-            self.hmode_prof_basis.ni_basis.volume_average_to_profile(state["nfuel19_vol"], Vp),
-            self.lmode_prof_basis.ni_basis.volume_average_to_profile(state["nfuel19_vol"], Vp),
+            self.hmode_prof_basis.ni_basis.volume_average_to_profile(
+                state["nfuel19_vol"], Vp
+            ),
+            self.lmode_prof_basis.ni_basis.volume_average_to_profile(
+                state["nfuel19_vol"], Vp
+            ),
         )
 
         ne19_vol = state["nfuel19_vol"] / params["ion_dilution"]
         ne19_profile = jax.lax.select(
             params["Hmode"],
-            self.hmode_prof_basis.ne_basis.volume_average_to_profile(state["nfuel19_vol"], Vp),
-            self.lmode_prof_basis.ne_basis.volume_average_to_profile(state["nfuel19_vol"], Vp)
+            self.hmode_prof_basis.ne_basis.volume_average_to_profile(ne19_vol, Vp),
+            self.lmode_prof_basis.ne_basis.volume_average_to_profile(ne19_vol, Vp),
         )
         ne19_line = jax.lax.select(
             params["Hmode"],
             self.hmode_prof_basis.ne_basis.line_average(ne19_profile),
-            self.lmode_prof_basis.ne_basis.line_average(ne19_profile)
+            self.lmode_prof_basis.ne_basis.line_average(ne19_profile),
         )
 
         # Compute the volume average pressure.
@@ -105,7 +109,9 @@ class Model:
             self.lmode_prof_basis.Te_basis.volume_average_to_profile(Te_kev_vol, Vp),
         )
 
-        Salpha = physics.alpha_power_density(nfuel19_profile, Ti_kev_prof, params["f_dt"])
+        Salpha = physics.alpha_power_density(
+            nfuel19_profile, Ti_kev_prof, params["f_dt"]
+        )
         Palpha = physics.volume_integral(Salpha, Vp, wgauss)
         Srad = physics.brems_power_density(params["Zeff"], ne19_profile, Te_kev_prof)
         Prad = physics.volume_integral(Srad, Vp, wgauss)
@@ -129,6 +135,13 @@ class Model:
         taue = jnp.where(params["Hmode"], tei.ipb98(), tei.ipb89())
 
         Wdot = -state["Wth"] / taue + Ptot
+
+        jax.lax.cond(
+            jnp.any(jnp.isnan(Wdot)),
+            lambda debug_vars: jax.debug.breakpoint(),
+            lambda debug_vars: None,
+            {k:v for k, v in locals().items() if k !="self"}
+        )
 
         """
         Compute li model derivatives.
@@ -155,7 +168,7 @@ class Model:
         # By the quotient rule:
         # nfuel_dot = (Nfuel_dot * Volume - Nfuel * Volume_dot) / Volume^2
         Nfuel19 = volume * state["nfuel19_vol"]
-        Nfuel19_dot = Nfuel19 / (params["tau_n_factor"] * taue) + control["fueling19"]
+        Nfuel19_dot = -Nfuel19 / (params["tau_n_factor"] * taue) + control["fueling19"]
         nfuel19_vol_dot = (Nfuel19_dot * volume - Nfuel19 * volume_dot) / volume**2
 
         derivatives = {
@@ -201,9 +214,9 @@ class Model:
 
         #
         hmode = ds["te"].sel(rho=0.95, method="nearest") > 3000
-        hmode = hmode.drop_vars("rho")  #
-        hmode_data = ds.where(hmode, drop=True)
-        lmode_data = ds.where(~hmode, drop=True)
+        ds["Hmode"] = hmode.drop_vars("rho")  #
+        hmode_data = ds.where(ds["Hmode"], drop=True)
+        lmode_data = ds.where(~ds["Hmode"], drop=True)
         hmode_basis, _, _ = ProfileBases.from_dataset(hmode_data)
         lmode_basis, _, _ = ProfileBases.from_dataset(lmode_data)
 

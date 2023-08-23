@@ -1,26 +1,9 @@
 import jax.numpy as jnp
 import equinox as eqx
 import xarray as xr
-from scipy.special import roots_legendre
 from sklearn.decomposition import PCA
 
-def generate_rho_n_gauss(n: int):
-    """Generate the grid point and weights for Legendre-Gauss quadrature
-    on the rho_n grid (i.e. between [0, 1]).
 
-    Args:
-        n (int): number of grid points to generate.
-    """
-
-    # Generate the grid points and weights for the Legendre-Gauss quadrature
-    # on the grid [-1, 1].
-    grid_points, weights = roots_legendre(n)
-
-    # Transform the grid points and weights to the grid [0, 1].
-    a, b = 0, 1  # Lower and upper bounds of integration.
-    rhogauss = (b - a) / 2 * grid_points + (a + b) / 2
-    wgauss = (b - a) / 2 * weights
-    return rhogauss, wgauss
 
 def pca_profiles(dataset: xr.Dataset, profile_to_ncomps: dict[str, int]) -> dict[str, PCA]:
     """Perform principal component analysis on profiles in a dataset.
@@ -93,7 +76,8 @@ class SimpleProfileBasis(eqx.Module):
         Returns:
             float: volume average of the profile.
         """
-        return jnp.dot(jnp.multiply(self.wgauss, Vp), profile)
+        volume = jnp.dot(self.wgauss, Vp)
+        return jnp.dot(jnp.multiply(self.wgauss, Vp), profile)/volume
 
     def line_average(self, profile: jnp.ndarray) -> float:
         """Compute the line average of a profile.
@@ -179,18 +163,11 @@ class ProfileBases(eqx.Module):
 
     @classmethod
     def from_dataset(cls, dataset: xr.Dataset) -> "ProfileBases":
-        ngauss = dataset.rho.values.size
-        rhogauss, wgauss = generate_rho_n_gauss(ngauss)
-        dss = dataset.stack(time_slices=["episode", "time"]).dropna(dim="time_slices")
-        dss["te_kev"] = 1e-3 * dss["te"] # Convert to kev.
-        dss["ti_kev"] = 1e-3 * dss["ti"] # Convert to kev.
-        dssi = dss[["te_kev", "ti_kev", "ne19_prof", "ni19_prof"]].interp(rho=rhogauss, method="cubic")
-        dsi = dssi.unstack("time_slices")
-
         n_comp = 1  # This basis only uses one component for each profile.
-        pcas = pca_profiles(dsi, {"te_kev": n_comp, "ti_kev": n_comp, "ne19_prof": n_comp, "ni19_prof": n_comp})
-        pca_ds, pca_var_names = apply_pcas(dsi, pcas)
-
+        pcas = pca_profiles(dataset, {"te_kev": n_comp, "ti_kev": n_comp, "ne19_prof": n_comp, "ni19_prof": n_comp})
+        pca_ds, pca_var_names = apply_pcas(dataset, pcas)
+        rhogauss = dataset["rho"].to_numpy().squeeze()
+        wgauss = dataset["wgauss"].to_numpy().squeeze()
         Te_basis = SimpleProfileBasis(
             v=jnp.array(pca_ds["te_kev_pca0"].attrs["v"]),
             b=jnp.array(pca_ds["te_kev"].attrs["pca_bias"]),
@@ -215,6 +192,7 @@ class ProfileBases(eqx.Module):
             rhogauss=jnp.array(rhogauss),
             wgauss=jnp.array(wgauss),
         )
+
 
         return (
             cls(Te_basis, Ti_basis, ne_basis, ni_basis),

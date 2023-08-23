@@ -81,8 +81,6 @@ for i in range(0, ntotal_steps, raptor_steps_per_step):
 params['tgrid'] = config['grid']['tgrid']
 final_out = eng.RAPTOR_out(simres, model, params, nargout=1)
 eng.workspace['out'] = final_out
-import pdb; pdb.set_trace()
 eng.save('/tmp/test.mat', 'out', nargout=0)
-import pdb; pdb.set_trace()
 # vars_viz = ["Ip", "Li", "Wth"]
 # plot_observations(obs, vars_viz)

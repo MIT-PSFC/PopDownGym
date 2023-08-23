@@ -1,0 +1,24 @@
+reward:
+  limits:
+    li: 3.0
+    ng_frac: 0.5
+    beta_n: 0.015
+    beta_p: 0.3
+    Bv_dot_mag: 0.3
+  barrier:
+    slope: 100.0
+    thresh: 0.95
+  ip_ma:
+    target: 1.5
+    abs_error_mult: 0.5
+    min_reward: -1.0 # NTS: we are getting negative temps if Ip gets too low.
+  hit_goal_reward: 100.0
+nominal_initial_state:
+  li: 0.757764
+  Ip_MA: 8.7
+  vc_minus_vb: 0.153183
+  Wth: 24828410
+  nfuel19_vol: 27.0
+  Paux: 14.0
+  gs: 0.0
+  Hmode: True

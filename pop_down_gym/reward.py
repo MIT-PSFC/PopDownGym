@@ -70,24 +70,3 @@ class RewardModel:
         return jnp.log(
             1.0 - sigmoid(clipped_normalized_value, self.barrier["slope"], self.barrier["thresh"])
         )
-
-    @classmethod
-    def create_default(cls):
-        default_params = {
-            "limits": {
-                "li": 3.0,
-                "ng_frac": 0.5,
-                "beta_n": 0.015,
-                "beta_p": 0.3,
-                "Bv_dot_mag": 0.3,
-            },
-            "barrier": {"slope": 100.0, "thresh": 0.95},
-            "ip_ma": {
-                "target": 1.5,
-                "abs_error_mult": 0.5,
-                "min_reward": -1.0,
-            },  # NTS: we are getting negative temps if Ip gets too low.
-            "hit_goal_reward": 100.0,
-        }
-        return cls(default_params)
-    

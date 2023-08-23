@@ -3,6 +3,7 @@ import xarray as xr
 import numpy as np
 import pop_down_gym
 import pop_down_gym.constants as constants
+from scipy.special import roots_legendre
 
 MU0 = 4 * np.pi * 1e-7  # [H/m] or [N/A^2]
 R0 = 1.85  # Major radius [m]
@@ -21,6 +22,23 @@ def apply_episodewise_function(ds: xr.Dataset, func):
         lambda eps_data: func(eps_data.dropna(dim="time", how="all"))
     )
 
+def generate_rho_n_gauss(n: int):
+    """Generate the grid point and weights for Legendre-Gauss quadrature
+    on the rho_n grid (i.e. between [0, 1]).
+
+    Args:
+        n (int): number of grid points to generate.
+    """
+
+    # Generate the grid points and weights for the Legendre-Gauss quadrature
+    # on the grid [-1, 1].
+    grid_points, weights = roots_legendre(n)
+
+    # Transform the grid points and weights to the grid [0, 1].
+    a, b = 0, 1  # Lower and upper bounds of integration.
+    rhogauss = (b - a) / 2 * grid_points + (a + b) / 2
+    wgauss = (b - a) / 2 * weights
+    return rhogauss, wgauss
 
 def vind_24(eps_df):
     # Equation 24 in Romero.
@@ -31,19 +49,30 @@ def preprocess(dataset: xr.Dataset, ngauss: int, downsample_fact: int=10, shot_c
     dataset_stacked = dataset.stack(time_slices=["episode", "time"]).dropna(dim="time_slices")
     dataset_stacked = dataset_stacked.isel(time_slices=slice(None, None, downsample_fact))
 
+    # Regrid everything to the Legendre-Gauss grid.
+    ngauss = dataset_stacked.rho.values.size
+    rhogauss, wgauss = generate_rho_n_gauss(ngauss)
+    dataset_stacked = dataset_stacked.interp(rho=rhogauss, method="cubic")
+    dataset_stacked["wgauss"] = wgauss
+
     # Total auxiliary power.
     dataset_stacked["Paux_MW"] = 1e-6 * (dataset_stacked["Pauxe"] + dataset_stacked["Pauxi"])
 
     # Treat Zeff as line average of "ze" profile, which from RAPTOR should be constant?
     dataset_stacked["Zeff"] = dataset_stacked["ze"].mean(dim="rho")
 
-    # Calculate profile statistics.
-    dataset_stacked["ne_avg"] = dataset_stacked["ne"].mean(dim="rho")
-    dataset_stacked["ni_avg"] = dataset_stacked["ni"].mean(dim="rho")
-    dataset_stacked["ne19"] = 1e-19 * dataset_stacked["ne_avg"]
-    dataset_stacked["ni19"] = 1e-19 * dataset_stacked["ni_avg"]
+    # Some unit changes.
     dataset_stacked["ne19_prof"] = 1e-19 * dataset_stacked["ne"]
     dataset_stacked["ni19_prof"] = 1e-19 * dataset_stacked["ni"]
+    dataset_stacked["te_kev"] = 1e-3 * dataset_stacked["te"] # Convert to kev.
+    dataset_stacked["ti_kev"] = 1e-3 * dataset_stacked["ti"] # Convert to kev.
+
+    # Volume averages.
+    dataset_stacked["Volume"] = dataset_stacked["Volume"].isel(rho=-1)
+    dataset_stacked["ne19_vol_avg"] = (dataset_stacked["ne19_prof"] * dataset_stacked["Vp"]).integrate("rho") / dataset_stacked["Volume"]
+    dataset_stacked["ni19_vol_avg"] = (dataset_stacked["ni19_prof"] * dataset_stacked["Vp"]).integrate("rho") / dataset_stacked["Volume"]
+    dataset_stacked["te_kev_vol_avg"] = (dataset_stacked["te_kev"] * dataset_stacked["Vp"]).integrate("rho") / dataset_stacked["Volume"]
+    dataset_stacked["ti_kev_vol_avg"] = (dataset_stacked["te_kev"] * dataset_stacked["Vp"]).integrate("rho") / dataset_stacked["Volume"]
 
     # For certain variables, such as Ip, RAPTOR stores values across the grid, for the amount of
     # the quantity enclosed in each flux surface, but we only care about the total value.
@@ -61,7 +90,7 @@ def preprocess(dataset: xr.Dataset, ngauss: int, downsample_fact: int=10, shot_c
     # kappa from RAPTOR is a profile, rename it to kappa_profile and make "kappa" refer to the edge.
     dataset_stacked["kappa_profile"] = dataset_stacked["kappa"]
     dataset_stacked["kappa"] = dataset_stacked["kappa"].isel(rho=-1)
-    dataset_stacked["surface_area"] = dataset_stacked["Volume"].isel(rho=-1) / (
+    dataset_stacked["surface_area"] = dataset_stacked["Volume"] / (
         2.0 * np.pi * shot_constants.R0
     )
     dataset_stacked["kappa_a"] = dataset_stacked["surface_area"] / (

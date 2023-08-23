@@ -128,11 +128,11 @@ if __name__ == "__main__":
         dIp_dt = 1e6 * row["dIp_dt"]
         Paux = 1e6 * row["Paux"]
         nfuel = 1e19 * row["nfuel19"]
-        ne = 1e19 * row["ne19"]
+        ne = 1e19 * row["ne19_vol_avg"]
         action = [dIp_dt, Paux, ne, nfuel]
         gym.step(action)
 
     raptor_out = gym.raptor_out()
     gym.eng_handle.workspace['out'] = raptor_out
     gym.eng_handle.save('/tmp/test.mat', 'out', nargout=0)
-    import pdb; pdb.set_trace()
+    

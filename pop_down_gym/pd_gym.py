@@ -1,23 +1,23 @@
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
+import numpy as np
 from functools import partial
 from pop_down_gym.utils import remap_range
 from pop_down_gym.model import Model
-from pop_down_gym.constants import ShotConstants
 from pop_down_gym.reward import RewardModel
 import pop_down_gym.physics as physics
 from contrax.simulate import SimFFControl
 
 
-class RdPopGym(gym.Env):
+class PopDownGym(gym.Env):
     CONT_STATE_RANGES = {
         "li": (0.5, 6.0),  # Normalized internal inductance [-]
         "Ip_MA": (1.0, 9.0),  # Plasma current [MA]
         "vc_minus_vb": (-5.0, 5.0),  # vc-vb as defined by Romero [V]
         "Wth": (1e5, 3e7),  # Stored thermal energy [J]
         "nfuel19_vol": (1.0, 30.0),  # Volume averaged fuel density [10^19 m^-3]
-        "Paux": (0.0, 25.0e6),  # Auxiliary heating power [MW]
+        "Paux": (0.0, 25.0),  # Auxiliary heating power [MW]
         "gs": (0.0, 1.0),  # Geometry evolution parameter [0]
     }
 
@@ -34,8 +34,8 @@ class RdPopGym(gym.Env):
         "nfuel19_vol": 2.0,
     }
     ACTION_RANGES = {
-        "dIp_dt": (-3.0, 0.0),  #
-        "dPaux_dt": (-5.0, 5.0),  #
+        "dIp_dt": (-3.0, -0.1),  # Rate of change of plasma current [MA/s]
+        "dPaux_dt": (-5.0, 5.0),  # Rate of change of auxiliary power [MW/s]
         "fueling19": (0.0, 155.0),  # Ad-hoc calculation [10^19/s]
         "dgs_dt": (0.0, 1.0),  # Rate of evolution through geometry space [1/s]
     }
@@ -53,29 +53,17 @@ class RdPopGym(gym.Env):
     }
     TIME_LIMIT = 5.0
 
-    def __init__(
-        self, model: Model, reward_model: RewardModel, shot_constants: ShotConstants
-    ):
+    def __init__(self, cfg: dict, model: Model):
         self.simulator = SimFFControl(model, dt0=1e-2)
-        self.reward_model = reward_model
-        self.shot_constants = shot_constants
-        self.nominal_initial_state = {
-            "li": 0.757764,
-            "Ip_MA": 8.7,
-            "vc_minus_vb": 0.153183,
-            "Wth": 2.482841e07,
-            "nfuel19_vol": 27.0,
-            "Paux": 14.0,
-            "gs": 0.0,
-            "Hmode": True,
-        }
+        self.reward_model = RewardModel(cfg["reward"])
+        self.shot_constants = model.shot_constants
+        self.nominal_initial_state = cfg["nominal_initial_state"]
         # Declare the normalized action space.
-        self.action_space = gym.spaces.Dict(
-            {
-                action_name: gym.spaces.Box(-1, 1)
-                for action_name in self.ACTION_RANGES.keys()
-            }
+        self.action_space = gym.spaces.Box(
+            low = -1.0 * np.ones(len(self.ACTION_RANGES)),
+            high = np.ones(len(self.ACTION_RANGES)),
         )
+
 
         # Declare the space of random parameters.
         self.random_param_space = gym.spaces.Dict(
@@ -85,16 +73,9 @@ class RdPopGym(gym.Env):
             }
         )
 
-        self.observation_space = gym.spaces.Dict(
-            {
-                "continuous": gym.spaces.Dict(
-                    {
-                        var: gym.spaces.Box(*range)
-                        for var, range in self.CONT_STATE_RANGES.items()
-                    }
-                ),
-                "Hmode": gym.spaces.Discrete(2),
-            }
+        self.observation_space = gym.spaces.Box(
+            low = -1.0 * np.ones(len(self.CONT_STATE_RANGES)),
+            high = np.ones(len(self.CONT_STATE_RANGES)),
         )
 
     def random_initial_state(self):
@@ -131,7 +112,7 @@ class RdPopGym(gym.Env):
 
         return self.state_to_obs(self.state), info
 
-    def unnormalize_action(self, action: dict) -> dict:
+    def unnormalize_action(self, action) -> dict:
         """Given an action sampled from the normalized action space, unnormalize it.
 
         Args:
@@ -140,10 +121,10 @@ class RdPopGym(gym.Env):
         Returns:
             dict: _description_
         """
-        for action_name, action_val in action.items():
+        for i, (action_name, action_val) in enumerate(action.items()):
             action_space_range = (
-                self.action_space[action_name].low.squeeze(),
-                self.action_space[action_name].high.squeeze(),
+                self.action_space.low[i],
+                self.action_space.high[i],
             )
             action[action_name] = remap_range(
                 action_val, action_space_range, self.ACTION_RANGES[action_name]
@@ -192,7 +173,7 @@ class RdPopGym(gym.Env):
         """
         Determine if the HL transition occured.
         """
-        Ploss = info["Ploss"]
+        Ploss = jnp.abs(info["Ploss"])
         PLH = physics.PLH_threshold(
             info["ne19_line"] / 10,  # Convert to ne20.
             self.shot_constants.Bphi0,
@@ -210,8 +191,16 @@ class RdPopGym(gym.Env):
             "vc_minus_vb": ys_last["vc_minus_vb"],
             "Wth": ys_last["Wth"],
             "nfuel19_vol": ys_last["nfuel19_vol"],
-            "Paux": ys_last["Paux"],
-            "gs": ys_last["gs"],
+            "Paux": jnp.clip(
+                ys_last["Paux"],
+                self.CONT_STATE_RANGES["Paux"][0],
+                self.CONT_STATE_RANGES["Paux"][1],
+            ),
+            "gs": jnp.clip(
+                ys_last["gs"],
+                self.CONT_STATE_RANGES["gs"][0],
+                self.CONT_STATE_RANGES["gs"][1],
+            ),
             "Hmode": Hmode_new,
         }
 
@@ -271,26 +260,28 @@ class RdPopGym(gym.Env):
             "Wdot": info["Wdot"],
             "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.DT),
         }
-
         return state_new, reward_inputs
 
     def step(self, action):
         """
         Step the environment forward in time.
         """
+        # Map the array of actions to a dict.
+        action = {action_name: action[i] for i, action_name in enumerate(self.ACTION_RANGES.keys())}
         unnormalized_action = self.unnormalize_action(action)
-        self.state, reward_inputs = self._step(self.state, unnormalized_action)
-        reward, reward_terms = self.reward_model.reward(reward_inputs, unnormalized_action)
+        prev_state = self.state
+        new_state, reward_inputs = self._step(prev_state, unnormalized_action)
+        self.state = new_state
+        reward, reward_terms = self.reward_model.reward(
+            reward_inputs, unnormalized_action
+        )
         self.time += self.DT
 
         truncated = self.time >= self.TIME_LIMIT
         hit_goal = reward_terms["hit_goal_reward"] > 0.0
         obs = self.state_to_obs(self.state)
-        terminated = (
-            truncated
-            or not self.observation_space.contains(obs)
-            or hit_goal
-        )
+        out_of_bounds = not self.observation_space.contains(list(obs))
+        terminated = truncated or out_of_bounds or hit_goal
 
         info = {
             "time": self.time,
@@ -298,32 +289,24 @@ class RdPopGym(gym.Env):
             "action": unnormalized_action,
             "reward_inputs": reward_inputs,
             "reward_terms": reward_terms,
+            "random_params": self.random_params,
+            "hit_goal": hit_goal,
+            "out_of_bounds": out_of_bounds,
         }
+
         return obs, reward, terminated, truncated, info
 
-    @classmethod
-    def create_default(cls):
-        model, _ = Model.create_default()
-        reward_model = RewardModel.create_default()
-        shot_constants = model.shot_constants
-        return cls(model, reward_model, shot_constants)
-
     def state_to_obs(self, state):
-        continuous = {k:v for k, v in state.items() if k != "Hmode"}
-        hmode = state["Hmode"]
-
-        for key, val in continuous.items():
-            # Normalize.
-            continuous[key] = remap_range(val, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
-        obs = {
-            "continuous": continuous,
-            "Hmode": hmode,
-        }
+        continuous = {k: v for k, v in state.items() if k != "Hmode"}
+        obs = np.zeros(len(continuous))
+        # In this problem, we define the observations as the continuous states normalized to [-1, 1].
+        # TODO(allenw): fair question to be asked
+        for i, (key, value) in enumerate(continuous.items()):
+            obs[i] = remap_range(value, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
         return obs
 
 
 if __name__ == "__main__":
-    env = RdPopGym.create_default()
+    env = PopDownGym.create_default()
     obs, info = env.reset()
     out = env.step(env.action_space.sample())
-
