@@ -6,6 +6,7 @@ from pop_down_gym import constants
 from pop_down_gym.profiles import ProfileBases
 from pop_down_gym.geometry import Geometry
 from contrax.examples.plasma.li_ip.models import RomeroNNV
+jax.config.update('jax_platform_name', 'cpu')
 
 
 class Model:
