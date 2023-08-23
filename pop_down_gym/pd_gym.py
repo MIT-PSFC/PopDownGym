@@ -131,7 +131,7 @@ class PopDownGym(gym.Env):
             )
         return action
 
-    @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,), backend='cpu')
     def _step(self, state, action):
         ts = jnp.array([0.0, self.DT])  # Time steps.
 
