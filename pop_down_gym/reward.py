@@ -33,6 +33,7 @@ class RewardModel:
             "Bv_dot_mag": self.reward_barrier(
                 reward_inputs["Bv_dot_mag"], self.limits["Bv_dot_mag"]
             ),
+            "Wdot_mag": self.reward_barrier(reward_inputs["Wdot_mag"], self.limits["Wdot_mag"]),
             "Ip": self.ip_reward(reward_inputs["Ip_MA"]),
             "hit_goal_reward": self.params["hit_goal_reward"] if hit_goal else 0.0,
         }

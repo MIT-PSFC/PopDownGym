@@ -257,7 +257,7 @@ class PopDownGym(gym.Env):
             "beta_t": beta_t,
             "beta_n": beta_n,
             "ng_frac": ng_frac,
-            "Wdot": info["Wdot"],
+            "Wdot_mag": jnp.abs(info["Wdot"]),
             "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.DT),
         }
         return state_new, reward_inputs
