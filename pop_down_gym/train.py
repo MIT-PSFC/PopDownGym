@@ -45,20 +45,19 @@ def build_policy_kwargs(n_layers: int, units_per_layer: int):
 
 
 def train(config=None, debug_mode=False):
+
     if config:
         project = config["user"]["project"]
         entity = config["user"]["entity"]
-        if debug_mode:
-            mode="disabled"
-        else:
-            mode="online"
         run = wandb.init(
-            project=project, entity=entity, sync_tensorboard=True, config=config, mode=mode
+            project=project, entity=entity, sync_tensorboard=True, config=config
         )
     else:
         run = wandb.init(sync_tensorboard=True)
 
     config = run.config
+    USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
+    config["user"] = yaml.safe_load(open(USER_FILE, "r"))
     GYM_CONFIG = os.path.join(os.path.dirname(__file__), "configs/gym.yaml")
     config["gym"] = yaml.safe_load(open(GYM_CONFIG, "r"))
 
@@ -115,26 +114,21 @@ def train(config=None, debug_mode=False):
 
 
 def debug():
-    # from jax import config
-    # config.update("jax_debug_nans", True)
-    # config.update('jax_disable_jit', True)
     config = {
         "batch_size": 2048,
         "ent_coef": 0.0024434119085899454,
         "eval_freq": 1000,
-        "free_cpus": 2,
+        "free_cpus": 8,
         "gamma": 1,
         "n_eval_episodes": 10,
         "n_layers": 2,
         "n_steps_over_batch": 1,
         "total_timesteps": 5000000,
         "units_per_layer": 256,
-        "debug_mode": True,
     }
     USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
     config["user"] = yaml.safe_load(open(USER_FILE, "r"))
-    train(config, debug_mode=True)
-
-
+    train(config)
+    
 if __name__ == "__main__":
     debug()

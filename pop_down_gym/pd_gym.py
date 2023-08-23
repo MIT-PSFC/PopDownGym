@@ -2,6 +2,7 @@ import gymnasium as gym
 import jax
 import jax.numpy as jnp
 import numpy as np
+import copy
 from functools import partial
 from pop_down_gym.utils import remap_range
 from pop_down_gym.model import Model
@@ -28,7 +29,7 @@ class PopDownGym(gym.Env):
     """
     RANDOM_INITIAL_STATE_PERCENT_VAR = {
         "li": 10.0,
-        "Ip_MA": 2.5,
+        "Ip_MA": 2.0,
         "vc_minus_vb": 10.0,
         "Wth": 2.0,
         "nfuel19_vol": 2.0,
@@ -64,7 +65,6 @@ class PopDownGym(gym.Env):
             high = np.ones(len(self.ACTION_RANGES)),
         )
 
-
         # Declare the space of random parameters.
         self.random_param_space = gym.spaces.Dict(
             {
@@ -82,7 +82,7 @@ class PopDownGym(gym.Env):
         """
         Generate a random initial state.
         """
-        state = self.nominal_initial_state
+        state = copy.deepcopy(self.nominal_initial_state)
         for var, percent_variation in self.RANDOM_INITIAL_STATE_PERCENT_VAR.items():
             fractional_variation = (
                 0.01 * percent_variation * self.np_random.uniform(low=-1.0, high=1.0)

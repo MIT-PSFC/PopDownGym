@@ -20,11 +20,11 @@ def run(project_name, out_dir, total_timesteps):
         "parameters": {
             "out_dir": {"value": out_dir},
             "total_timesteps": {"value": total_timesteps},
-            "free_cpus": {"value": 2},
+            "free_cpus": {"value": 6},
             "eval_freq": {"value": 1e4},
             "n_eval_episodes": {"value": 10},
             "gamma": {"value": 1.0},
-            "batch_size": {"values": [512, 1024, 2048, 4096]},
+            "batch_size": {"values": [1024, 2048, 4096]},
             "n_steps_over_batch": {"values": [1, 2, 3]},
             "ent_coef": {"min": 0.0, "max": 0.02},
             "n_layers": {"values": [2, 3]},

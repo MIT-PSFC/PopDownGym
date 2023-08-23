@@ -8,7 +8,6 @@ packages = [{include = "pop_down_gym"}]
 
 [tool.poetry.dependencies]
 python = ">=3.9, <3.10"
-matlabengine = "9.12.19"
 scipy = "^1.10.1"
 pytest = "^7.4.0"
 jaxlib = {version = "^0.4.14+cuda12.cudnn89", source = "jax_cuda"}
@@ -21,6 +20,7 @@ wandb = "^0.15.8"
 plotly = "^5.16.1"
 stable-baselines3 = "2.0.0a10"
 tensorboard = "^2.14.0"
+urllib3 = "1.26.16"
 
 [[tool.poetry.source]]
 name = "jax_cuda"

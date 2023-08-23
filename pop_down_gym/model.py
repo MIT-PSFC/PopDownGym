@@ -137,13 +137,6 @@ class Model:
 
         Wdot = -state["Wth"] / taue + Ptot
 
-        jax.lax.cond(
-            jnp.any(jnp.isnan(Wdot)),
-            lambda debug_vars: jax.debug.breakpoint(),
-            lambda debug_vars: None,
-            {k:v for k, v in locals().items() if k !="self"}
-        )
-
         """
         Compute li model derivatives.
         """
