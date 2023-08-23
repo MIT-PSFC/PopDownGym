@@ -10,6 +10,7 @@ import wandb
 from wandb.integration.sb3 import WandbCallback
 import torch as th
 import yaml
+import math
 
 
 def get_env_builder(cfg, seed):
@@ -62,7 +63,8 @@ def train(config=None, debug_mode=False):
     config["gym"] = yaml.safe_load(open(GYM_CONFIG, "r"))
 
     # Fill the config struct with extra data we want to record.
-    n_train_envs = max(1, os.cpu_count() - config["free_cpus"])
+    
+    n_train_envs = max(1, math.floor(config["free_cpu_frac"] * os.cpu_count()))
     config["n_train_envs"] = n_train_envs
 
     # Directory to dump run data.
@@ -118,7 +120,7 @@ def debug():
         "batch_size": 2048,
         "ent_coef": 0.0024434119085899454,
         "eval_freq": 1000,
-        "free_cpus": 8,
+        "free_cpu_frac": 0.5,
         "gamma": 1,
         "n_eval_episodes": 10,
         "n_layers": 2,
@@ -128,7 +130,7 @@ def debug():
     }
     USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
     config["user"] = yaml.safe_load(open(USER_FILE, "r"))
-    train(config)
+    train(config, debug_mode=False)
     
 if __name__ == "__main__":
-    debug()
+    train()

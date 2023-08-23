@@ -45,7 +45,7 @@ def vind_24(eps_df):
     out = (1.0 / eps_df["Ip"]) * (0.5 * eps_df["Li"] * eps_df["Ip"] ** 2.0).differentiate("time")
     return out
 
-def preprocess(dataset: xr.Dataset, ngauss: int, downsample_fact: int=10, shot_constants=constants.ShotConstants.for_sparc()):
+def preprocess(dataset: xr.Dataset, ngauss: int, downsample_fact: int=1, shot_constants=constants.ShotConstants.for_sparc()):
     dataset_stacked = dataset.stack(time_slices=["episode", "time"]).dropna(dim="time_slices")
     dataset_stacked = dataset_stacked.isel(time_slices=slice(None, None, downsample_fact))
 
@@ -133,6 +133,9 @@ def preprocess(dataset: xr.Dataset, ngauss: int, downsample_fact: int=10, shot_c
 def load_data():
     """Load the data."""
     # Load the data.
-    path = os.path.join(pop_down_gym.ROOT_DIR, "data/raptor_sim_for_rl.nc")
+    path = os.path.join(pop_down_gym.ROOT_DIR, "data/raptor_sparc_rd.nc")
     ds = preprocess(xr.load_dataset(path), 31)
-    return ds
+
+    path_geom_shot = os.path.join(pop_down_gym.ROOT_DIR, "data/raptor_sim_for_rl.nc")
+    ds_geom = preprocess(xr.load_dataset(path_geom_shot), 31)
+    return ds, ds_geom

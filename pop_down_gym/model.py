@@ -194,16 +194,15 @@ class Model:
         from pop_down_gym.data.load import load_data
         import equinox as eqx
 
-        ds = load_data()
+        ds, ds_geom = load_data()
 
         consts = constants.ShotConstants.for_sparc()
-
         g = Geometry(
             consts.R0,
-            ds.time.values,
-            ds.aminor.values.squeeze(),
-            ds.kappa_a.values.squeeze(),
-            ds.Vp.values.squeeze(),
+            ds_geom.time.values,
+            ds_geom.aminor.values.squeeze(),
+            ds_geom.kappa_a.values.squeeze(),
+            ds_geom.Vp.values.squeeze(),
         )
 
         #

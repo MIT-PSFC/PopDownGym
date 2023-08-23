@@ -20,7 +20,7 @@ def run(project_name, out_dir, total_timesteps):
         "parameters": {
             "out_dir": {"value": out_dir},
             "total_timesteps": {"value": total_timesteps},
-            "free_cpus": {"value": 6},
+            "free_cpu_frac": {"value": 0.5},
             "eval_freq": {"value": 1e4},
             "n_eval_episodes": {"value": 10},
             "gamma": {"value": 1.0},
