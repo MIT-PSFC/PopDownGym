@@ -10,10 +10,10 @@ reward:
     slope: 100.0
     thresh: 0.95
   ip_ma:
-    target: 1.5
+    target: 2.0
     abs_error_mult: 0.5
     min_reward: -1.0 # NTS: we are getting negative temps if Ip gets too low.
-  hit_goal_reward: 100.0
+  hit_goal_reward: 500.0
 nominal_initial_state:
   li: 0.757764
   Ip_MA: 8.7

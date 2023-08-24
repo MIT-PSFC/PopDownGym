@@ -119,7 +119,7 @@ def debug():
     config = {
         "batch_size": 2048,
         "ent_coef": 0.0024434119085899454,
-        "eval_freq": 1000,
+        "eval_freq": 5000,
         "free_cpu_frac": 0.5,
         "gamma": 1,
         "n_eval_episodes": 10,
@@ -133,4 +133,4 @@ def debug():
     train(config, debug_mode=False)
     
 if __name__ == "__main__":
-    train()
+    debug()

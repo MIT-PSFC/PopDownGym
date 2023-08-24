@@ -35,9 +35,9 @@ class PopDownGym(gym.Env):
         "nfuel19_vol": 2.0,
     }
     ACTION_RANGES = {
-        "dIp_dt": (-3.0, -0.1),  # Rate of change of plasma current [MA/s]
+        "dIp_dt": (-3.0, -0.5),  # Rate of change of plasma current [MA/s]
         "dPaux_dt": (-5.0, 5.0),  # Rate of change of auxiliary power [MW/s]
-        "fueling19": (0.0, 155.0),  # Ad-hoc calculation [10^19/s]
+        "fueling19": (0.0, 10.0),  # Really limit fueling, prob don't want much [10^19/s]
         "dgs_dt": (0.0, 1.0),  # Rate of evolution through geometry space [1/s]
     }
 
@@ -52,7 +52,7 @@ class PopDownGym(gym.Env):
         "tau_n_factor": (7.0, 9.0),
         "prad_mult": (2.0, 3.0),
     }
-    TIME_LIMIT = 5.0
+    TIME_LIMIT = 7.5
 
     def __init__(self, cfg: dict, model: Model):
         self.simulator = SimFFControl(model, dt0=1e-2)
