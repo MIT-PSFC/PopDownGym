@@ -1,4 +1,5 @@
 import math
+import jax
 import jax.numpy as jnp
 import equinox as eqx
 
@@ -321,6 +322,9 @@ def betas_to_beta_n(betap: float, betat: float, Ip_MA: float, a: float, Bphi0: f
     betan = beta * a * Bphi0 / Ip_MA
     return betan
 
+def replace_nan_warn_and_sum(q):
+    jax.debug.print("Warning: replacing nans with zeros in q: {q}", q=q)
+    return jnp.sum(jnp.nan_to_num(q, nan=0.0))
 
 def volume_integral(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> float:
     """Integrate a quantity over the plasma volume.
@@ -333,8 +337,14 @@ def volume_integral(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> flo
     Returns:
         float: integrated quantity.
     """
-    return jnp.sum(jnp.multiply(wgauss, jnp.multiply(q, Vp)))
-
+    product = jnp.multiply(wgauss, jnp.multiply(q, Vp))
+    out = jax.lax.cond(
+        jnp.any(jnp.isnan(product)),
+        lambda q: replace_nan_warn_and_sum(q),
+        lambda q: jnp.sum(q),
+        product
+    )
+    return out
 
 def volume_average(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> float:
     return volume_integral(q, Vp, wgauss) / jnp.dot(wgauss, Vp)
