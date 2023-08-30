@@ -44,9 +44,9 @@ class PopDownGym(gym.Env):
     DT = 0.05
 
     RANDOM_PARAM_RANGES = {
-        "ion_dilution": (0.8, 0.95),
-        "HL_FUDGE": (0.5, 0.8),
-        "Hfactor": (0.7, 1.0),
+        "ion_dilution": (0.8, 0.9),
+        "HL_FUDGE": (0.55, 0.75),
+        "Hfactor": (0.8, 1.0),
         "Zeff": (1.2, 1.8),
         "Te_over_Ti": (1.0, 1.2),
         "tau_n_factor": (7.0, 9.0),
