@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 
 
+
 class TauEInput(eqx.Module):
     IPB98_TABLEAU = {
         "C": 0.0562,
@@ -264,8 +265,8 @@ def W_to_pressure(W: float, volume: float) -> float:
     Returns:
         float: _description_
     """
-    W_density = W / volume
-    return (2.0 / 3.0) * W_density
+    W_avg = W / volume
+    return (2.0 / 3.0) * W_avg
 
 
 def pressure_to_W(pressure: float, volume: float) -> float:
@@ -340,12 +341,12 @@ def betas_to_beta_n(
     betan = beta * a * Bphi0 / Ip_MA
     return betan
 
-
 def replace_nan_warn_and_sum(q):
     return jnp.sum(jnp.nan_to_num(q, nan=0.0))
 
-
-def volume_integral(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> float:
+def volume_integral(
+    quantity: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray
+) -> float:
     """Integrate a quantity over the plasma volume.
 
     Args:
@@ -356,7 +357,7 @@ def volume_integral(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> flo
     Returns:
         float: integrated quantity.
     """
-    product = jnp.multiply(wgauss, jnp.multiply(q, Vp))
+    product = jnp.multiply(wgauss, jnp.multiply(quantity, Vp))
     out = jax.lax.cond(
         jnp.any(jnp.isnan(product)),
         lambda q: replace_nan_warn_and_sum(q),

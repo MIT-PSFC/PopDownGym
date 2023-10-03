@@ -1,17 +1,17 @@
 import equinox as eqx
 import jax.numpy as jnp
-
-from contrax.controls.controls import ControlTraj
+from contrax.controls.controls import cubic_interp
 from pop_down_gym.physics import plasma_volume
+from diffrax import CubicInterpolation
 
 
 class Geometry(eqx.Module):
     """Provide an interpolation of equilibria data."""
 
     R0: float
-    a: ControlTraj
-    kappa_a: ControlTraj
-    Vp: ControlTraj
+    a: CubicInterpolation
+    kappa_a: CubicInterpolation
+    Vp: CubicInterpolation
 
     def __init__(
         self,
@@ -23,15 +23,14 @@ class Geometry(eqx.Module):
     ) -> None:
         s = ts / (ts[-1] - ts[0])
         self.R0 = R0
-        self.a = ControlTraj.spline_interp(s, a, spline_order=1)
-        self.kappa_a = ControlTraj.spline_interp(s, kappa_a, spline_order=1)
-        Vp_traj = ControlTraj.spline_interp(s, [v for v in Vp], spline_order=1)
-        self.Vp = lambda s: jnp.array(Vp_traj(s))
+        self.a = cubic_interp(s, a)
+        self.kappa_a = cubic_interp(s, kappa_a)
+        self.Vp = cubic_interp(s, [v for v in Vp])
 
     def __call__(self, s: float):
-        aminor = self.a(s)
-        kappa_a = self.kappa_a(s)
-        Vp = self.Vp(s)
+        aminor = self.a.evaluate(s)
+        kappa_a = self.kappa_a.evaluate(s)
+        Vp = jnp.array(self.Vp.evaluate(s))
         out = {
             "aminor": aminor,
             "kappa_a": kappa_a,

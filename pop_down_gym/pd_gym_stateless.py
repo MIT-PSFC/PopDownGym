@@ -14,6 +14,7 @@ from pop_down_gym.utils import remap_range
 
 
 class PopDownGymStateless:
+    CONT_STATES = ["li", "Ip_MA", "vc_minus_vb", "Wth", "nfuel19_vol", "Paux", "gs"]
     CONT_STATE_RANGES = {
         "li": (0.5, 6.0),  # Normalized internal inductance [-]
         "Ip_MA": (1.0, 9.0),  # Plasma current [MA]
@@ -24,7 +25,7 @@ class PopDownGymStateless:
         "gs": (0.0, 1.0),  # Geometry evolution parameter [0]
     }
 
-    """
+    """ 
     When generating a random initial state, we allow each state variable
     to vary by a certain percentage of its nominal value. If the variable
     is not included in this dict, then it is not varied.
@@ -38,7 +39,7 @@ class PopDownGymStateless:
     }
     ACTION_RANGES = {
         "dIp_dt": (-3.0, -0.5),  # Rate of change of plasma current [MA/s]
-        "dPaux_dt": (-5.0, 5.0),  # Rate of change of auxiliary power [MW/s]
+        "dPaux_dt": (-10.0, 10.0),  # Rate of change of auxiliary power [MW/s]
         "fueling19": (
             0.0,
             10.0,
@@ -49,12 +50,12 @@ class PopDownGymStateless:
     DT = 0.05
 
     RANDOM_PARAM_RANGES = {
-        "ion_dilution": (0.8, 0.9),
+        "ion_dilution": (0.85, 0.95),
         "HL_FUDGE": (0.55, 0.75),
-        "Hfactor": (0.8, 1.0),
-        "Zeff": (1.2, 1.8),
+        "Hfactor": (0.7, 1.0),
+        "Zeff": (1.2, 2.0),
         "Te_over_Ti": (1.0, 1.2),
-        "tau_n_factor": (7.0, 9.0),
+        "tau_n_factor": (6.5, 9.0),
         "prad_mult": (2.0, 3.0),
     }
     TIME_LIMIT = 7.5
@@ -136,8 +137,8 @@ class PopDownGymStateless:
         info = {"time": 0.0}
 
         return random_params, state, self.state_to_obs(state), info
-
-    def unnormalize_action(self, action) -> dict:
+    
+    def dictify_and_unnormalize_action(self, action) -> dict:
         """Given an action sampled from the normalized action space, unnormalize it.
 
         Args:
@@ -146,16 +147,20 @@ class PopDownGymStateless:
         Returns:
             dict: _description_
         """
+        action = {
+            action_name: action[i]
+            for i, action_name in enumerate(self.ACTION_RANGES.keys())
+        }
         for i, (action_name, action_val) in enumerate(action.items()):
             action_space_range = (
-                self.action_space[0][i],
-                self.action_space[1][i],
+                self.action_space.low[i],
+                self.action_space.high[i],
             )
             action[action_name] = remap_range(
                 action_val, action_space_range, self.ACTION_RANGES[action_name]
             )
         return action
-
+    
     def check_out_of_bounds(self, obs):
         """Check if the given observations are in bounds or not"""
         # TODO currently, the observation range seems to be [-1, 1], not
@@ -167,15 +172,7 @@ class PopDownGymStateless:
         return out_of_bounds
 
     @partial(jax.jit, static_argnums=(0,))
-    def _step(self, params, state, action):
-        """
-        Step the environment forward in time.
-
-        Args:
-            params (dict): The current random parameters.
-            state (dict): The current state.
-            action (dict): The current action.
-        """
+    def _step(self, state, action, random_params):
         ts = jnp.array([0.0, self.DT])  # Time steps.
 
         # Initial State.
@@ -191,20 +188,19 @@ class PopDownGymStateless:
         # [Hmode, Hfactor, Zeff, ion_dilution, Te_over_Ti, f_dt, tau_n_factor, prad_mult]
         params = {
             "Hmode": state["Hmode"],
-            "HL_FUDGE": params["HL_FUDGE"],
-            "Hfactor": params["Hfactor"],
-            "Zeff": params["Zeff"],
-            "ion_dilution": params["ion_dilution"],
-            "Te_over_Ti": params["Te_over_Ti"],
+            "Hfactor": random_params["Hfactor"],
+            "Zeff": random_params["Zeff"],
+            "ion_dilution": random_params["ion_dilution"],
+            "Te_over_Ti": random_params["Te_over_Ti"],
             "f_dt": 0.5,
-            "tau_n_factor": params["tau_n_factor"],
-            "prad_mult": params["prad_mult"],
+            "tau_n_factor": random_params["tau_n_factor"],
+            "prad_mult": random_params["prad_mult"],
         }
 
         # SimFFControl needs controls at all time steps in "ts".
         # Let's just assume a zero-order-hold, so constant action over the simulation step.
         controls = jax.tree_map(lambda x: jnp.repeat(x, 2), action)
-        res = self.simulator.simulate(ts, initial_state, controls, params=params)
+        res = self.simulator.simulate(ts, initial_state, controls, params)
 
         # Evaluate the model at the first and last time steps in debug mode to get info.
         ys0 = jax.tree_map(lambda x: x[0], res.ys)
@@ -224,7 +220,7 @@ class PopDownGymStateless:
             info["aminor"],
             self.shot_constants.R0,
         )
-        PHL = params["HL_FUDGE"] * PLH
+        PHL = random_params["HL_FUDGE"] * PLH
         Hmode_new = jnp.where(
             jnp.logical_and(state["Hmode"] == 1, Ploss < PHL), 0, state["Hmode"]
         )
@@ -310,12 +306,7 @@ class PopDownGymStateless:
         """
         Step the environment forward in time.
         """
-        # Map the array of actions to a dict.
-        action = {
-            action_name: action[i]
-            for i, action_name in enumerate(self.ACTION_RANGES.keys())
-        }
-        unnormalized_action = self.unnormalize_action(action)
+        unnormalized_action = self.dictify_and_unnormalize_action(action)
         new_state, reward_inputs = self._step(params, state, unnormalized_action)
         reward, reward_terms = self.reward_model.reward(
             reward_inputs, unnormalized_action
@@ -343,15 +334,18 @@ class PopDownGymStateless:
         return obs, reward, terminated, truncated, info
 
     def state_to_obs(self, state):
-        continuous = {k: v for k, v in state.items() if k != "Hmode"}
-        obs = jnp.zeros(len(continuous))
+        obs = np.zeros(len(self.CONT_STATES))
         # In this problem, we define the observations as the continuous states normalized to [-1, 1].
         # TODO(allenw): fair question to be asked
-        for i, (key, value) in enumerate(continuous.items()):
-            obs = obs.at[i].set(
-                remap_range(value, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
-            )
-        return obs
+        for i, key in enumerate(self.CONT_STATES):
+            value = state[key]
+            obs[i] = remap_range(value, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
+
+        out = {
+            "continuous": list(obs),
+            "Hmode": bool(state["Hmode"]),
+        }
+        return out
 
     def simulate_trajectory_open_loop(self, prng_key, open_loop_actions, steps=100):
         """

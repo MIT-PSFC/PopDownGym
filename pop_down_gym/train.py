@@ -47,12 +47,16 @@ def build_policy_kwargs(n_layers: int, units_per_layer: int):
     return policy_kwargs
 
 
-def train(config=None, debug_mode=False):
+def train(config=None):
     if config:
         project = config["user"]["project"]
         entity = config["user"]["entity"]
         run = wandb.init(
-            project=project, entity=entity, sync_tensorboard=True, config=config
+            project=project,
+            entity=entity,
+            sync_tensorboard=True,
+            config=config,
+            mode="disabled" if config["debug_env"] else "online",
         )
     else:
         run = wandb.init(sync_tensorboard=True)
@@ -72,13 +76,12 @@ def train(config=None, debug_mode=False):
     out_dir = os.path.join(config["user"]["out_dir"], run.id)
 
     # Build the vectorized environment.
-    if debug_mode:
+    if config["debug_env"]:
         vec_env = DummyVecEnv([get_env_builder(config["gym"], 0)])
     else:
         vec_env = SubprocVecEnv(
             [get_env_builder(config["gym"], i) for i in range(n_train_envs)]
         )
-
     # Initialize callbacks.
     wandb_cb = WandbCallback(model_save_freq=1e4, model_save_path=out_dir, verbose=2)
     eval_wandb_cb = VisualizeEval(vec_env, config["gym"]["reward"]["limits"], run)
@@ -92,7 +95,7 @@ def train(config=None, debug_mode=False):
     )
 
     model = PPO(
-        "MlpPolicy",
+        "MultiInputPolicy",
         vec_env,
         seed=42,
         verbose=1,
@@ -119,19 +122,20 @@ def train(config=None, debug_mode=False):
 def debug():
     config = {
         "batch_size": 2048,
-        "ent_coef": 0.0024434119085899454,
+        "ent_coef": 0.0024434119085899454,  # Identified via hyperparameter search.
         "eval_freq": 5000,
-        "free_cpu_frac": 0.5,
+        "free_cpu_frac": 0.2,
         "gamma": 1,
-        "n_eval_episodes": 10,
-        "n_layers": 2,
+        "n_eval_episodes": 20,
+        "n_layers": 3,
         "n_steps_over_batch": 1,
-        "total_timesteps": 5000000,
-        "units_per_layer": 256,
+        "total_timesteps": 10000000,
+        "units_per_layer": 128,
+        "debug_env": False,
     }
     USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
     config["user"] = yaml.safe_load(open(USER_FILE, "r"))
-    train(config, debug_mode=False)
+    train(config)
 
 
 if __name__ == "__main__":

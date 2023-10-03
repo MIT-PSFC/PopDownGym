@@ -5,7 +5,7 @@ reward:
     beta_n: 0.015
     beta_p: 0.3
     Bv_dot_mag: 0.3
-    Wdot_mag: 20000000
+    Wdot_mag: 40000000
   barrier:
     slope: 100.0
     thresh: 0.95

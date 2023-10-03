@@ -21,10 +21,14 @@ class PopDownGym(gym.Env):
             low=-1.0 * np.ones(len(self.stateless_env.ACTION_RANGES)),
             high=np.ones(len(self.stateless_env.ACTION_RANGES)),
         )
-
-        self.observation_space = gym.spaces.Box(
-            low=-1.0 * np.ones(len(self.stateless_env.CONT_STATE_RANGES)),
-            high=np.ones(len(self.stateless_env.CONT_STATE_RANGES)),
+        self.observation_space = gym.spaces.Dict(
+            {
+                "continuous": gym.spaces.Box(
+                    low=-1.0 * np.ones(len(self.stateless_env.CONT_STATE_RANGES)),
+                    high=np.ones(len(self.stateless_env.CONT_STATE_RANGES)),
+                ),
+                "Hmode": gym.spaces.Discrete(2),
+            }
         )
 
     def random_initial_state(self):
