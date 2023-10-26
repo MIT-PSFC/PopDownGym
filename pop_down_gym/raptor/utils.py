@@ -1,5 +1,5 @@
-import numpy as np
 import matlab.engine
+import numpy as np
 
 
 def to_numpy(arr):

@@ -1,14 +1,16 @@
+import copy
+from functools import partial
+
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
 import numpy as np
-import copy
-from functools import partial
-from pop_down_gym.utils import remap_range
-from pop_down_gym.model import Model
-from pop_down_gym.reward import RewardModel
+
 import pop_down_gym.physics as physics
 from contrax.simulate import SimFFControl
+from pop_down_gym.model import Model
+from pop_down_gym.reward import RewardModel
+from pop_down_gym.utils import remap_range
 
 
 class PopDownGym(gym.Env):

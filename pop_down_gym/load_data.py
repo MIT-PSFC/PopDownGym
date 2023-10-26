@@ -1,9 +1,11 @@
 import os
-import xarray as xr
+
 import numpy as np
+import xarray as xr
+from scipy.special import roots_legendre
+
 import pop_down_gym
 import pop_down_gym.constants as constants
-from scipy.special import roots_legendre
 
 MU0 = 4 * np.pi * 1e-7  # [H/m] or [N/A^2]
 R0 = 1.85  # Major radius [m]

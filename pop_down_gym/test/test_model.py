@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from pop_down_gym.model import Model
+
 from contrax.simulate import SimFFControl
+from pop_down_gym.model import Model
 
 
 def test_model():

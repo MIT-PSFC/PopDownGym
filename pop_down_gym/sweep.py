@@ -1,6 +1,8 @@
-import wandb
-import click
 import os
+
+import click
+
+import wandb
 
 
 @click.command()

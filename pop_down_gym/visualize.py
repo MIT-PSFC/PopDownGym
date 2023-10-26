@@ -1,11 +1,13 @@
-import gymnasium as gym
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-import pandas as pd
-import wandb
 from typing import Union
-from stable_baselines3.common.evaluation import evaluate_policy
+
+import gymnasium as gym
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.evaluation import evaluate_policy
+
+import wandb
 
 
 def df_to_plotly_fig(df, title):

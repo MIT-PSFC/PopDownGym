@@ -1,5 +1,5 @@
-import jax.numpy as jnp
 import equinox as eqx
+import jax.numpy as jnp
 import xarray as xr
 from sklearn.decomposition import PCA
 

@@ -1,8 +1,9 @@
-from rd_rl.raptor.init_raptor import init_matlab, init_sparc_rd
-from rd_rl.raptor.utils import concat_simres, VWrapper, numpy_to_matlab, update_ustep
 import matlab.engine
 import numpy as np
 import pandas as pd
+from rd_rl.raptor.init_raptor import init_matlab, init_sparc_rd
+from rd_rl.raptor.utils import (VWrapper, concat_simres, numpy_to_matlab,
+                                update_ustep)
 
 
 class RaptorRDGym:

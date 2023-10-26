@@ -1,7 +1,9 @@
 import os
+
 import matlab.engine
 from scipy.interpolate import interp1d
-from .utils import to_numpy, numpy_to_matlab
+
+from .utils import numpy_to_matlab, to_numpy
 
 
 def init_matlab(raptor_repo_root: str) -> matlab.engine.MatlabEngine:

@@ -1,7 +1,8 @@
 import math
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 
 
 class TauEInput(eqx.Module):

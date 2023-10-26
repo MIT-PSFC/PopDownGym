@@ -1,6 +1,7 @@
 import math
-import numpy as np
 import time
+
+import numpy as np
 
 
 def out_to_obs(out):

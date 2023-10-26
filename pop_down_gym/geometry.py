@@ -1,5 +1,6 @@
 import equinox as eqx
 import jax.numpy as jnp
+
 from contrax.controls.controls import ControlTraj
 from pop_down_gym.physics import plasma_volume
 

@@ -1,16 +1,18 @@
-from pop_down_gym.pd_gym import PopDownGym
-from pop_down_gym.model import Model
-from pop_down_gym.visualize import VisualizeEval
+import math
+import os
+
+import torch as th
+import yaml
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
-import os
-import wandb
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from wandb.integration.sb3 import WandbCallback
-import torch as th
-import yaml
-import math
+
+import wandb
+from pop_down_gym.model import Model
+from pop_down_gym.pd_gym import PopDownGym
+from pop_down_gym.visualize import VisualizeEval
 
 
 def get_env_builder(cfg, seed):
