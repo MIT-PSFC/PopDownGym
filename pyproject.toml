@@ -27,6 +27,11 @@ name = "jax_cuda"
 url = "https://storage.googleapis.com/jax-releases/jax_cuda_releases.html"
 priority = "primary"
 
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.10.1"
+isort = "^5.12.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

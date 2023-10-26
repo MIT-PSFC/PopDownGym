@@ -1,8 +1,9 @@
-from rd_rl.raptor.init_raptor import init_matlab, init_sparc_rd
-from rd_rl.raptor.utils import concat_simres, VWrapper, numpy_to_matlab, update_ustep
 import matlab.engine
 import numpy as np
 import pandas as pd
+from rd_rl.raptor.init_raptor import init_matlab, init_sparc_rd
+from rd_rl.raptor.utils import (VWrapper, concat_simres, numpy_to_matlab,
+                                update_ustep)
 
 
 class RaptorRDGym:
@@ -25,9 +26,20 @@ class RaptorRDGym:
         return self.gym_iter * self.rspgs
 
     def reset(self):
-        x0, g_interp, Vp_interp, v, U0, model, params, simres0, out0, config, ne_basis, ni_basis = (
-            init_sparc_rd(self.raptor_repo_root, self.eng_handle, self.raptor_dt)
-        )
+        (
+            x0,
+            g_interp,
+            Vp_interp,
+            v,
+            U0,
+            model,
+            params,
+            simres0,
+            out0,
+            config,
+            ne_basis,
+            ni_basis,
+        ) = init_sparc_rd(self.raptor_repo_root, self.eng_handle, self.raptor_dt)
         self.raptor_x = x0
         self.g_interp = g_interp
         self.Vp_interp = Vp_interp
@@ -56,7 +68,7 @@ class RaptorRDGym:
 
         # We don't know what the H-L threshold is, for this sim lets just create a fudge factor.
         PLH = out_prev["PLH"][0][-1]
-        fudge_factor = 1.0 # TODO(allenw): currently forcing LMode to see results.
+        fudge_factor = 1.0  # TODO(allenw): currently forcing LMode to see results.
         PHL = fudge_factor * PLH
 
         # I don't really like this, but it should work.
@@ -66,8 +78,12 @@ class RaptorRDGym:
             pass
         else:
             self.vwrapper.hmode[self.raptor_iter :] = 0
-            self.vwrapper.te_bc[self.raptor_iter :] = self.config["hmode"]["params"]["te_rhoedge"]
-            self.vwrapper.ti_bc[self.raptor_iter :] = self.config["hmode"]["params"]["ti_rhoedge"]
+            self.vwrapper.te_bc[self.raptor_iter :] = self.config["hmode"]["params"][
+                "te_rhoedge"
+            ]
+            self.vwrapper.ti_bc[self.raptor_iter :] = self.config["hmode"]["params"][
+                "ti_rhoedge"
+            ]
 
         vwrapper_step = self.vwrapper[self.raptor_iter : self.raptor_iter + self.rspgs]
 
@@ -75,10 +91,14 @@ class RaptorRDGym:
         Set particle densities.
         """
         ne_profile = ne_line * self.ne_basis
-        vwrapper_step.ne = self.eng_handle.mldivide(self.model["ne"]["Lamgauss"], numpy_to_matlab(ne_profile))
+        vwrapper_step.ne = self.eng_handle.mldivide(
+            self.model["ne"]["Lamgauss"], numpy_to_matlab(ne_profile)
+        )
 
         ni_profile = ni_line * self.ni_basis
-        vwrapper_step.ni = self.eng_handle.mldivide(self.model["ni"]["Lamgauss"], numpy_to_matlab(ni_profile))
+        vwrapper_step.ni = self.eng_handle.mldivide(
+            self.model["ni"]["Lamgauss"], numpy_to_matlab(ni_profile)
+        )
         return vwrapper_step.v
 
     def step(self, action):
@@ -86,12 +106,16 @@ class RaptorRDGym:
         self.Ustep = update_ustep(self.Ustep, dIp_dt, Paux, self.raptor_dt)
 
         # Given an array of Ips, use g_interp to compute geometry parameters for said Ips.
-        gstep = numpy_to_matlab(np.column_stack([self.g_interp(Ip) for Ip in self.Ustep[0, :]]))
+        gstep = numpy_to_matlab(
+            np.column_stack([self.g_interp(Ip) for Ip in self.Ustep[0, :]])
+        )
 
         vstep = numpy_to_matlab(self.get_vstep(ne_line_avg, nfuel_line_avg))
 
         # A bit annoying, but we need to update the tgrid in the params struct for every time step.
-        self.params["tgrid"] = self.tgrid[0][self.raptor_iter : self.raptor_iter + self.rspgs]
+        self.params["tgrid"] = self.tgrid[0][
+            self.raptor_iter : self.raptor_iter + self.rspgs
+        ]
 
         self.raptor_x, simres, out = self.eng_handle.step_raptor(
             self.raptor_x,
@@ -112,14 +136,16 @@ class RaptorRDGym:
         return
 
     def raptor_out(self):
-        self.params['tgrid'] = self.tgrid[0][:self.raptor_iter]
-        raptor_out = self.eng_handle.RAPTOR_out(self.simres, self.model, self.params, nargout=1)
+        self.params["tgrid"] = self.tgrid[0][: self.raptor_iter]
+        raptor_out = self.eng_handle.RAPTOR_out(
+            self.simres, self.model, self.params, nargout=1
+        )
         return raptor_out
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     df = pd.read_pickle("rl_traj_for_raptor_test.pkl")
-    gym = RaptorRDGym("/home/awang/raptor", 1e-2, 5) #dts are 0.05s.
+    gym = RaptorRDGym("/home/awang/raptor", 1e-2, 5)  # dts are 0.05s.
     gym.reset()
 
     for index, row in df.iterrows():
@@ -133,6 +159,5 @@ if __name__ == "__main__":
         gym.step(action)
 
     raptor_out = gym.raptor_out()
-    gym.eng_handle.workspace['out'] = raptor_out
-    gym.eng_handle.save('/tmp/test.mat', 'out', nargout=0)
-    
+    gym.eng_handle.workspace["out"] = raptor_out
+    gym.eng_handle.save("/tmp/test.mat", "out", nargout=0)

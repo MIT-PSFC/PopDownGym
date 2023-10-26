@@ -1,12 +1,14 @@
 import jax
 import jax.numpy as jnp
+
 import pop_down_gym
 import pop_down_gym.physics as physics
-from pop_down_gym import constants
-from pop_down_gym.profiles import ProfileBases
-from pop_down_gym.geometry import Geometry
 from contrax.examples.plasma.li_ip.models import RomeroNNV
-jax.config.update('jax_platform_name', 'cpu')
+from pop_down_gym import constants
+from pop_down_gym.geometry import Geometry
+from pop_down_gym.profiles import ProfileBases
+
+jax.config.update("jax_platform_name", "cpu")
 
 
 class Model:
@@ -191,8 +193,9 @@ class Model:
 
     @classmethod
     def create_default(cls):
-        from pop_down_gym.load_data import load_data
         import equinox as eqx
+
+        from pop_down_gym.load_data import load_data
 
         ds, ds_geom = load_data()
 

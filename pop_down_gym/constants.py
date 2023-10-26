@@ -5,6 +5,7 @@ MU0 = 4 * np.pi * 1e-7  # [H/m] or [N/A^2]
 EV_TO_J = 1.602176565e-19  # [J/eV]
 KEV_TO_J = 1e3 * EV_TO_J  # [J/keV]
 
+
 @jdc.pytree_dataclass
 class ShotConstants:
     R0: float  # Major radius [m]

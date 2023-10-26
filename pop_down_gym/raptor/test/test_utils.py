@@ -1,6 +1,7 @@
 import numpy as np
 from rd_rl.raptor.utils import update_ustep
 
+
 def test_update_Ustep():
     raptor_dt = 0.01
     Ustep = np.zeros((2, 5))

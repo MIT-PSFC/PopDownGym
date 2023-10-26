@@ -1,7 +1,9 @@
 import os
+
 import matlab.engine
 from scipy.interpolate import interp1d
-from .utils import to_numpy, numpy_to_matlab
+
+from .utils import numpy_to_matlab, to_numpy
 
 
 def init_matlab(raptor_repo_root: str) -> matlab.engine.MatlabEngine:
@@ -23,10 +25,14 @@ def init_matlab(raptor_repo_root: str) -> matlab.engine.MatlabEngine:
 
 def init_sparc_rd(raptor_repo_root: str, eng: matlab.engine.MatlabEngine, dt: float):
     transp_data = eng.load(
-        os.path.join(raptor_repo_root, "projects", "SPARC", "SPARC_V1E_transp_3mod2.mat")
+        os.path.join(
+            raptor_repo_root, "projects", "SPARC", "SPARC_V1E_transp_3mod2.mat"
+        )
     )
 
-    x0, g, v, U0, model, params, simres0, out0, config = eng.init_raptor(transp_data, dt, nargout=9)
+    x0, g, v, U0, model, params, simres0, out0, config = eng.init_raptor(
+        transp_data, dt, nargout=9
+    )
 
     g = to_numpy(g)
     v = to_numpy(v)
@@ -40,17 +46,33 @@ def init_sparc_rd(raptor_repo_root: str, eng: matlab.engine.MatlabEngine, dt: fl
     Vp = eng.eval_Vp([], numpy_to_matlab(g), [], model, True)
     Vp_interp = interp1d(Ip, to_numpy(Vp))
 
-
     # Build a ne basis that will be used for updating the ne profile.
     # Note: index with [0] instead of 0 to preserve dimension information.
     ne_profile0 = eng.eval_ne([], [], numpy_to_matlab(v[:, [0]]), model, True)
     ne_line0 = eng.int_Ltot(ne_profile0, model)
-    ne_basis = to_numpy(ne_profile0) / ne_line0 # Multiply this basis by line average ne to get ne profile.
+    ne_basis = (
+        to_numpy(ne_profile0) / ne_line0
+    )  # Multiply this basis by line average ne to get ne profile.
 
     # Build a ni basis that will be used for updating the ni profile.
     # Note: index with [0] instead of 0 to preserve dimension information.
     ni_profile0 = eng.eval_ni([], [], numpy_to_matlab(v[:, [0]]), model, True)
     ni_line0 = eng.int_Ltot(ni_profile0, model)
-    ni_basis = to_numpy(ni_profile0) / ni_line0 # Multiply this basis by line average ni to get ni profile.
+    ni_basis = (
+        to_numpy(ni_profile0) / ni_line0
+    )  # Multiply this basis by line average ni to get ni profile.
 
-    return x0, g_interp, Vp_interp, v, U0, model, params, simres0, out0, config, ne_basis, ni_basis
+    return (
+        x0,
+        g_interp,
+        Vp_interp,
+        v,
+        U0,
+        model,
+        params,
+        simres0,
+        out0,
+        config,
+        ne_basis,
+        ni_basis,
+    )

@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 
+
 def sigmoid(x: float, c1: float, c2: float) -> float:
     """Sigmoid where "cutoff" is c2 and "slope" is c1.
 
@@ -27,13 +28,21 @@ class RewardModel:
         hit_goal = reward_inputs["Ip_MA"] <= self.ip_ma["target"]
         reward_terms = {
             "li": self.reward_barrier(reward_inputs["li"], self.limits["li"]),
-            "ng_frac": self.reward_barrier(reward_inputs["ng_frac"], self.limits["ng_frac"]),
-            "beta_n": self.reward_barrier(reward_inputs["beta_n"], self.limits["beta_n"]),
-            "beta_p": self.reward_barrier(reward_inputs["beta_p"], self.limits["beta_p"]),
+            "ng_frac": self.reward_barrier(
+                reward_inputs["ng_frac"], self.limits["ng_frac"]
+            ),
+            "beta_n": self.reward_barrier(
+                reward_inputs["beta_n"], self.limits["beta_n"]
+            ),
+            "beta_p": self.reward_barrier(
+                reward_inputs["beta_p"], self.limits["beta_p"]
+            ),
             "Bv_dot_mag": self.reward_barrier(
                 reward_inputs["Bv_dot_mag"], self.limits["Bv_dot_mag"]
             ),
-            "Wdot_mag": self.reward_barrier(reward_inputs["Wdot_mag"], self.limits["Wdot_mag"]),
+            "Wdot_mag": self.reward_barrier(
+                reward_inputs["Wdot_mag"], self.limits["Wdot_mag"]
+            ),
             "Ip": self.ip_reward(reward_inputs["Ip_MA"]),
             "hit_goal_reward": self.params["hit_goal_reward"] if hit_goal else 0.0,
         }
@@ -45,10 +54,14 @@ class RewardModel:
     def ip_reward(self, Ip_MA: float) -> float:
         # Idea: always negative reward for Ip > 0.0.
         abs_error = jnp.abs(Ip_MA)
-        x = self.ip_ma["abs_error_mult"] * abs_error  # An attempt to get steeper reward gradients.
+        x = (
+            self.ip_ma["abs_error_mult"] * abs_error
+        )  # An attempt to get steeper reward gradients.
         # Apply a funky logistic kernel thing.
         mult_factor = jnp.abs(self.ip_ma["min_reward"] / 0.25)
-        reward = self.ip_ma["min_reward"] + mult_factor / (jnp.exp(x) + 2.0 + jnp.exp(-x))
+        reward = self.ip_ma["min_reward"] + mult_factor / (
+            jnp.exp(x) + 2.0 + jnp.exp(-x)
+        )
         return reward
 
     def reward_barrier(self, val: float, limit: float) -> float:
@@ -69,5 +82,8 @@ class RewardModel:
         normalized_value = jnp.abs(val / limit)
         clipped_normalized_value = jnp.clip(normalized_value, 0.0, 1.1)
         return jnp.log(
-            1.0 - sigmoid(clipped_normalized_value, self.barrier["slope"], self.barrier["thresh"])
+            1.0
+            - sigmoid(
+                clipped_normalized_value, self.barrier["slope"], self.barrier["thresh"]
+            )
         )

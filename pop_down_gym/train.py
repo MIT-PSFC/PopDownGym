@@ -1,16 +1,18 @@
-from pop_down_gym.pd_gym import PopDownGym
-from pop_down_gym.model import Model
-from pop_down_gym.visualize import VisualizeEval
+import math
+import os
+
+import torch as th
+import yaml
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
-import os
-import wandb
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from wandb.integration.sb3 import WandbCallback
-import torch as th
-import yaml
-import math
+
+import wandb
+from pop_down_gym.model import Model
+from pop_down_gym.pd_gym import PopDownGym
+from pop_down_gym.visualize import VisualizeEval
 
 
 def get_env_builder(cfg, seed):
@@ -46,7 +48,6 @@ def build_policy_kwargs(n_layers: int, units_per_layer: int):
 
 
 def train(config=None, debug_mode=False):
-
     if config:
         project = config["user"]["project"]
         entity = config["user"]["entity"]
@@ -63,7 +64,7 @@ def train(config=None, debug_mode=False):
     config["gym"] = yaml.safe_load(open(GYM_CONFIG, "r"))
 
     # Fill the config struct with extra data we want to record.
-    
+
     n_train_envs = max(1, math.floor(config["free_cpu_frac"] * os.cpu_count()))
     config["n_train_envs"] = n_train_envs
 
@@ -131,6 +132,7 @@ def debug():
     USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
     config["user"] = yaml.safe_load(open(USER_FILE, "r"))
     train(config, debug_mode=False)
-    
+
+
 if __name__ == "__main__":
     debug()

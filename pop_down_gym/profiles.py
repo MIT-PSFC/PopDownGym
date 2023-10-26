@@ -1,11 +1,12 @@
-import jax.numpy as jnp
 import equinox as eqx
+import jax.numpy as jnp
 import xarray as xr
 from sklearn.decomposition import PCA
 
 
-
-def pca_profiles(dataset: xr.Dataset, profile_to_ncomps: dict[str, int]) -> dict[str, PCA]:
+def pca_profiles(
+    dataset: xr.Dataset, profile_to_ncomps: dict[str, int]
+) -> dict[str, PCA]:
     """Perform principal component analysis on profiles in a dataset.
 
     Args:
@@ -15,7 +16,9 @@ def pca_profiles(dataset: xr.Dataset, profile_to_ncomps: dict[str, int]) -> dict
     Returns:
         dict[str, PCA]: mapping variable names of profiles to the PCA object containing the results of the PCA.
     """
-    dataset_stacked = dataset.stack(time_slices=["time", "episode"]).dropna(dim="time_slices")
+    dataset_stacked = dataset.stack(time_slices=["time", "episode"]).dropna(
+        dim="time_slices"
+    )
     pcas = dict()
     for profile, dim in profile_to_ncomps.items():
         pca = PCA(n_components=dim)
@@ -24,8 +27,11 @@ def pca_profiles(dataset: xr.Dataset, profile_to_ncomps: dict[str, int]) -> dict
     dataset_stacked = dataset_stacked.unstack(dim="time_slices")
     return pcas
 
+
 def apply_pcas(dataset: xr.Dataset, pcas):
-    stacked_dataset = dataset.stack(time_slices=["time", "episode"]).dropna(dim="time_slices")
+    stacked_dataset = dataset.stack(time_slices=["time", "episode"]).dropna(
+        dim="time_slices"
+    )
     pca_var_names = []
     for profile, pca in pcas.items():
         components = pcas[profile].transform(stacked_dataset[profile].to_numpy().T)
@@ -48,6 +54,7 @@ def apply_pcas(dataset: xr.Dataset, pcas):
     dataset = stacked_dataset.unstack(dim="time_slices")
     return dataset, pca_var_names
 
+
 class SimpleProfileBasis(eqx.Module):
     """
     Represent profiles as:
@@ -61,7 +68,9 @@ class SimpleProfileBasis(eqx.Module):
     rhogauss: jnp.ndarray  # Legendre-Gauss quadrature grid points.
     wgauss: jnp.ndarray  # Legendre-Gauss quadrature weights.
 
-    def __init__(self, v: jnp.ndarray, b: jnp.ndarray, rhogauss: jnp.ndarray, wgauss: jnp.ndarray):
+    def __init__(
+        self, v: jnp.ndarray, b: jnp.ndarray, rhogauss: jnp.ndarray, wgauss: jnp.ndarray
+    ):
         self.v = v
         self.b = b
         self.rhogauss = rhogauss
@@ -77,7 +86,7 @@ class SimpleProfileBasis(eqx.Module):
             float: volume average of the profile.
         """
         volume = jnp.dot(self.wgauss, Vp)
-        return jnp.dot(jnp.multiply(self.wgauss, Vp), profile)/volume
+        return jnp.dot(jnp.multiply(self.wgauss, Vp), profile) / volume
 
     def line_average(self, profile: jnp.ndarray) -> float:
         """Compute the line average of a profile.
@@ -90,9 +99,7 @@ class SimpleProfileBasis(eqx.Module):
         """
         return jnp.dot(self.wgauss, profile)
 
-    def volume_average_to_profile(
-        self, Qvol: float, Vp: jnp.ndarray
-    ) -> jnp.ndarray:
+    def volume_average_to_profile(self, Qvol: float, Vp: jnp.ndarray) -> jnp.ndarray:
         """Convert a volume average quantity to a profile.
 
         Args:
@@ -102,7 +109,9 @@ class SimpleProfileBasis(eqx.Module):
         Returns:
             jnp.ndarray: profile corresponding to the volume average quantity.
         """
-        num = jnp.dot(self.wgauss, Vp) * Qvol - jnp.dot(jnp.multiply(self.wgauss, self.b), Vp)
+        num = jnp.dot(self.wgauss, Vp) * Qvol - jnp.dot(
+            jnp.multiply(self.wgauss, self.b), Vp
+        )
         denom = jnp.dot(jnp.multiply(self.wgauss, self.v), Vp)
         c = num / denom  # Coefficient for the temperature profile.
         profile = c * self.v + self.b
@@ -123,14 +132,17 @@ class SimpleProfileBasis(eqx.Module):
         profile = c * self.v + self.b
         return profile
 
-    def volume_average_to_line_average(self, Q_vol_avg: float, Vp: jnp.ndarray) -> float:
+    def volume_average_to_line_average(
+        self, Q_vol_avg: float, Vp: jnp.ndarray
+    ) -> float:
         profile = self.volume_average_to_profile(Q_vol_avg, Vp, self.v, self.b)
         return self.line_average(profile)
 
-    def line_average_to_volume_average(self, Q_line_avg: float, Vp: jnp.ndarray) -> float:
+    def line_average_to_volume_average(
+        self, Q_line_avg: float, Vp: jnp.ndarray
+    ) -> float:
         profile = self.line_average_to_profile(Q_line_avg, self.v, self.b)
         return self.volume_average(profile, Vp)
-
 
 
 class ProfileBases(eqx.Module):
@@ -164,7 +176,15 @@ class ProfileBases(eqx.Module):
     @classmethod
     def from_dataset(cls, dataset: xr.Dataset) -> "ProfileBases":
         n_comp = 1  # This basis only uses one component for each profile.
-        pcas = pca_profiles(dataset, {"te_kev": n_comp, "ti_kev": n_comp, "ne19_prof": n_comp, "ni19_prof": n_comp})
+        pcas = pca_profiles(
+            dataset,
+            {
+                "te_kev": n_comp,
+                "ti_kev": n_comp,
+                "ne19_prof": n_comp,
+                "ni19_prof": n_comp,
+            },
+        )
         pca_ds, pca_var_names = apply_pcas(dataset, pcas)
         rhogauss = dataset["rho"].to_numpy().squeeze()
         wgauss = dataset["wgauss"].to_numpy().squeeze()
@@ -192,7 +212,6 @@ class ProfileBases(eqx.Module):
             rhogauss=jnp.array(rhogauss),
             wgauss=jnp.array(wgauss),
         )
-
 
         return (
             cls(Te_basis, Ti_basis, ne_basis, ni_basis),

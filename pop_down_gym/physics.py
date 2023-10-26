@@ -1,7 +1,9 @@
 import math
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
+
 
 class TauEInput(eqx.Module):
     IPB98_TABLEAU = {
@@ -122,11 +124,15 @@ class TauEInput(eqx.Module):
             Ip_MA=8.7,
             Psol=1.7  # 1.7 MW Ohmic.
             + 11.1  # 11.1 MW RF.
-            + 0.2 * 140  # 140MW fusion, with 1/5 of the fusion power going to alpha particles.
+            + 0.2
+            * 140  # 140MW fusion, with 1/5 of the fusion power going to alpha particles.
             - 10.4,  # 10.4 MW radiated.
         )
 
-def calc_Bv(Ip_MA: float, kappa: float, beta_p: float, li3: float, R: float, a: float) -> float:
+
+def calc_Bv(
+    Ip_MA: float, kappa: float, beta_p: float, li3: float, R: float, a: float
+) -> float:
     """Calculate the vertical field required for radial force balance.
 
     Args:
@@ -165,7 +171,10 @@ def plasma_volume(R0: float, a: float, kappa_a: float) -> float:
     cross_sectional_area = math.pi * a**2.0 * kappa_a
     return 2 * math.pi * R0 * cross_sectional_area
 
-def ohmic_power(R0: float, a: float, Ip_MA: float, kappa: float, Te_kev: float) -> float:
+
+def ohmic_power(
+    R0: float, a: float, Ip_MA: float, kappa: float, Te_kev: float
+) -> float:
     """Equation obtained from exercise 6 of the 2023 EPFL Control & Operation of Tokamaks
     School."""
     epsilon = a / R0
@@ -173,7 +182,7 @@ def ohmic_power(R0: float, a: float, Ip_MA: float, kappa: float, Te_kev: float) 
     # Discrepancy. The code says Ip^2, but the paper says Ip^1.
     # Because the Ohmic heating is general I^2R, I think the code is correct.
     c2 = (R0 * Ip_MA**2.0) / (a**2 * kappa * Te_kev**1.5)
-    return (c1 * c2)
+    return c1 * c2
 
 
 def brems_power_density(Zeff: float, ne19: float, Te_kev: float) -> float:
@@ -236,7 +245,13 @@ def alpha_power_density(ni19: float, Ti_kev: float, f_dt: float) -> float:
         float: alpha heating energy density W/m^3
     """
     Ealpha = 5.68e-13  # Energy of alpha particles at birth ~3.5 MeV [J]
-    return (f_dt / (1.0 + f_dt) ** 2.0) * Ealpha * 1e19**2.0 * ni19**2.0 * sigma_v(Ti_kev)
+    return (
+        (f_dt / (1.0 + f_dt) ** 2.0)
+        * Ealpha
+        * 1e19**2.0
+        * ni19**2.0
+        * sigma_v(Ti_kev)
+    )
 
 
 def W_to_pressure(W: float, volume: float) -> float:
@@ -285,6 +300,7 @@ def pressure_to_beta(mean_pressure: float, B: float) -> float:
     mu0 = 4e-7 * jnp.pi
     return (2.0 * mu0 * mean_pressure) / B**2.0
 
+
 def pressure_to_beta_p(mean_pressure: float, Ip_MA: float, a: float) -> float:
     """Compute poloidal plasma beta.
 
@@ -305,7 +321,9 @@ def pressure_to_beta_p(mean_pressure: float, Ip_MA: float, a: float) -> float:
     return pressure_to_beta(mean_pressure, Bta)
 
 
-def betas_to_beta_n(betap: float, betat: float, Ip_MA: float, a: float, Bphi0: float) -> float:
+def betas_to_beta_n(
+    betap: float, betat: float, Ip_MA: float, a: float, Bphi0: float
+) -> float:
     """
 
     Args:
@@ -322,9 +340,11 @@ def betas_to_beta_n(betap: float, betat: float, Ip_MA: float, a: float, Bphi0: f
     betan = beta * a * Bphi0 / Ip_MA
     return betan
 
+
 def replace_nan_warn_and_sum(q):
     jax.debug.print("Warning: replacing nans with zeros in q: {q}", q=q)
     return jnp.sum(jnp.nan_to_num(q, nan=0.0))
+
 
 def volume_integral(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> float:
     """Integrate a quantity over the plasma volume.
@@ -342,9 +362,10 @@ def volume_integral(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> flo
         jnp.any(jnp.isnan(product)),
         lambda q: replace_nan_warn_and_sum(q),
         lambda q: jnp.sum(q),
-        product
+        product,
     )
     return out
+
 
 def volume_average(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> float:
     return volume_integral(q, Vp, wgauss) / jnp.dot(wgauss, Vp)
@@ -362,11 +383,18 @@ def PLH_threshold(ne20: float, B0: float, a: float, R: float) -> float:
     Returns:
         float: H-mode threshold in watts.
     """
-    return 2.15e6 * math.exp(1) ** 0.107 * ne20**0.782 * B0**0.772 * a**0.975 * R**0.999
+    return (
+        2.15e6
+        * math.exp(1) ** 0.107
+        * ne20**0.782
+        * B0**0.772
+        * a**0.975
+        * R**0.999
+    )
 
 
 def greenwald_fraction(ne19_line_average: float, Ip_MA: float, a: float) -> float:
-    """ Compute the greenwald fraction.
+    """Compute the greenwald fraction.
 
     Args:
         ne19_line_average (float): _description_
