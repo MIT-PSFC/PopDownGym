@@ -32,9 +32,7 @@ def run(project_name, out_dir, total_timesteps):
         },
     }
     sweep_id = wandb.sweep(
-        sweep=sweep_configuration,
-        project=project_name,
-        entity="allen_adastra"
+        sweep=sweep_configuration, project=project_name, entity="allen_adastra"
     )
     print(f"sweep_id: {sweep_id}")
 

@@ -10,9 +10,13 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 def df_to_plotly_fig(df, title):
     n_vars = len(df.columns)
-    fig = make_subplots(rows=n_vars, cols=1, shared_xaxes=True, subplot_titles=df.columns)
+    fig = make_subplots(
+        rows=n_vars, cols=1, shared_xaxes=True, subplot_titles=df.columns
+    )
     for i, column in enumerate(df.columns):
-        fig.add_trace(go.Scatter(x=df.index, y=df[column], name=column), row=i + 1, col=1)
+        fig.add_trace(
+            go.Scatter(x=df.index, y=df[column], name=column), row=i + 1, col=1
+        )
     fig.update_layout(title=title)
     fig.update_layout(autosize=False, height=n_vars * 800, width=800)
     return fig

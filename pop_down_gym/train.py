@@ -46,7 +46,6 @@ def build_policy_kwargs(n_layers: int, units_per_layer: int):
 
 
 def train(config=None, debug_mode=False):
-
     if config:
         project = config["user"]["project"]
         entity = config["user"]["entity"]
@@ -63,7 +62,7 @@ def train(config=None, debug_mode=False):
     config["gym"] = yaml.safe_load(open(GYM_CONFIG, "r"))
 
     # Fill the config struct with extra data we want to record.
-    
+
     n_train_envs = max(1, math.floor(config["free_cpu_frac"] * os.cpu_count()))
     config["n_train_envs"] = n_train_envs
 
@@ -131,6 +130,7 @@ def debug():
     USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
     config["user"] = yaml.safe_load(open(USER_FILE, "r"))
     train(config, debug_mode=False)
-    
+
+
 if __name__ == "__main__":
     debug()

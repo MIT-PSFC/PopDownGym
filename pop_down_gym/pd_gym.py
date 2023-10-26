@@ -37,7 +37,10 @@ class PopDownGym(gym.Env):
     ACTION_RANGES = {
         "dIp_dt": (-3.0, -0.5),  # Rate of change of plasma current [MA/s]
         "dPaux_dt": (-5.0, 5.0),  # Rate of change of auxiliary power [MW/s]
-        "fueling19": (0.0, 10.0),  # Really limit fueling, prob don't want much [10^19/s]
+        "fueling19": (
+            0.0,
+            10.0,
+        ),  # Really limit fueling, prob don't want much [10^19/s]
         "dgs_dt": (0.0, 1.0),  # Rate of evolution through geometry space [1/s]
     }
 
@@ -61,8 +64,8 @@ class PopDownGym(gym.Env):
         self.nominal_initial_state = cfg["nominal_initial_state"]
         # Declare the normalized action space.
         self.action_space = gym.spaces.Box(
-            low = -1.0 * np.ones(len(self.ACTION_RANGES)),
-            high = np.ones(len(self.ACTION_RANGES)),
+            low=-1.0 * np.ones(len(self.ACTION_RANGES)),
+            high=np.ones(len(self.ACTION_RANGES)),
         )
 
         # Declare the space of random parameters.
@@ -74,8 +77,8 @@ class PopDownGym(gym.Env):
         )
 
         self.observation_space = gym.spaces.Box(
-            low = -1.0 * np.ones(len(self.CONT_STATE_RANGES)),
-            high = np.ones(len(self.CONT_STATE_RANGES)),
+            low=-1.0 * np.ones(len(self.CONT_STATE_RANGES)),
+            high=np.ones(len(self.CONT_STATE_RANGES)),
         )
 
     def random_initial_state(self):
@@ -131,7 +134,7 @@ class PopDownGym(gym.Env):
             )
         return action
 
-    @partial(jax.jit, static_argnums=(0,), backend='cpu')
+    @partial(jax.jit, static_argnums=(0,), backend="cpu")
     def _step(self, state, action):
         ts = jnp.array([0.0, self.DT])  # Time steps.
 
@@ -267,7 +270,10 @@ class PopDownGym(gym.Env):
         Step the environment forward in time.
         """
         # Map the array of actions to a dict.
-        action = {action_name: action[i] for i, action_name in enumerate(self.ACTION_RANGES.keys())}
+        action = {
+            action_name: action[i]
+            for i, action_name in enumerate(self.ACTION_RANGES.keys())
+        }
         unnormalized_action = self.unnormalize_action(action)
         prev_state = self.state
         new_state, reward_inputs = self._step(prev_state, unnormalized_action)
