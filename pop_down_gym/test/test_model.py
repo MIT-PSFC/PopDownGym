@@ -1,12 +1,14 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 from contrax.simulate import SimFFControl
 from pop_down_gym.model import Model
 
 
-def test_model():
+@pytest.mark.parametrize("variant", [lambda fn: fn, jax.jit])
+def test_model_call(variant):
     # State: [li, Ip_MA, vc_minus_vb, Wth, nfuel19_vol, Paux, gs]
     # Control: [dIp_dt, dPaux_dt, fueling19, dgs_dt]
     # Params: [HMode, Hfactor, Zeff, ion_dilution, Te_over_Ti]
@@ -40,14 +42,19 @@ def test_model():
         "tau_n_factor": 7.5,
         "prad_mult": 2.0,
     }
-    test, ds = Model.create_default()
+    test_model, _ = Model.create_default()
 
-    test(initial_state, jax.tree_map(lambda x: x[0], controls), params=params)
+    state_derivatives = variant(test_model)(
+        initial_state, jax.tree_map(lambda x: x[0], controls), params=params
+    )
 
-    sim = SimFFControl(test, dt0=1e-2)
-    res = sim.simulate(ts, initial_state, controls, params=params)
+    # State derivatives should have the right shape
+    assert jax.tree_util.tree_structure(
+        state_derivatives
+    ) == jax.tree_util.tree_structure(initial_state)
 
 
+# TODO@dawsonc test and make sure that this works
 def test_simulate():
     # debug nans
     jax.config.update("jax_debug_nans", True)
