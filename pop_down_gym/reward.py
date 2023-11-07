@@ -44,7 +44,9 @@ class RewardModel:
                 reward_inputs["Wdot_mag"], self.limits["Wdot_mag"]
             ),
             "Ip": self.ip_reward(reward_inputs["Ip_MA"]),
-            "hit_goal_reward": self.params["hit_goal_reward"] if hit_goal else 0.0,
+            "hit_goal_reward": jax.lax.cond(
+                hit_goal, lambda _: self.params["hit_goal_reward"], lambda _: 0.0, None
+            ),
         }
 
         jreward = jnp.array(jax.tree_util.tree_leaves(reward_terms))

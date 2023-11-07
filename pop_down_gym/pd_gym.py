@@ -1,10 +1,12 @@
 import copy
+import os
 from functools import partial
 
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
 import numpy as np
+import yaml
 
 import pop_down_gym.physics as physics
 from contrax.simulate import SimFFControl
@@ -136,7 +138,7 @@ class PopDownGym(gym.Env):
             )
         return action
 
-    @partial(jax.jit, static_argnums=(0,), backend="cpu")
+    @partial(jax.jit, static_argnums=(0,))  # , backend="cpu")  # TODO is this needed?
     def _step(self, state, action):
         ts = jnp.array([0.0, self.DT])  # Time steps.
 
@@ -314,7 +316,11 @@ class PopDownGym(gym.Env):
         return obs
 
 
+
 if __name__ == "__main__":
-    env = PopDownGym.create_default()
+    config_filepath = os.path.join(os.path.dirname(__file__), "configs/gym.yaml")
+    config = yaml.safe_load(open(config_filepath, "r"))
+    model, _ = Model.create_default()
+    env = PopDownGym(config, model)
     obs, info = env.reset()
     out = env.step(env.action_space.sample())
