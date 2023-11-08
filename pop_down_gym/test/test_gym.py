@@ -149,8 +149,8 @@ def benchmark_simulate(num_trials: int = 100):
             }
             results.append(log)
 
-    # results = pd.DataFrame(results)
-    # results.to_csv("benchmarking/gpu_benchmark_simulate.csv", index=False)
+    results = pd.DataFrame(results)
+    results.to_csv("benchmarking/gpu_benchmark_simulate.csv", index=False)
 
 
 if __name__ == "__main__":
