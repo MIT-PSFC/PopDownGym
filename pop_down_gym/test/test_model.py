@@ -110,7 +110,9 @@ def test_simulate():
         ts_step = ts[i : i + 2]
         controls_step = jax.tree_map(lambda x: x[i : i + 2], controls)
         params["Hmode"] = Hmode[i]
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         res = simulate(ts_step, states[-1], controls_step, params=params)
         new_state = jax.tree_map(lambda x: x[-1], res.ys)
         states.append(new_state)
@@ -190,6 +192,7 @@ def benchmark_model_call(num_trials: int = 100):
     print(f"Benchmarking Model.__call__ with {num_trials} trials")
     print(f"Without jit: {np.mean(no_jit_times)} +/- {np.std(no_jit_times)}")
     print(f"With jit: {np.mean(jit_times)} +/- {np.std(jit_times)}")
+
 
 if __name__ == "__main__":
     test_simulate()

@@ -15,7 +15,7 @@ from pop_down_gym.reward import RewardModel
 from pop_down_gym.utils import remap_range
 
 
-class PopDownGym(gym.Env):
+class PopDownGymStateless:
     CONT_STATE_RANGES = {
         "li": (0.5, 6.0),  # Normalized internal inductance [-]
         "Ip_MA": (1.0, 9.0),  # Plasma current [MA]
@@ -67,57 +67,72 @@ class PopDownGym(gym.Env):
         self.shot_constants = model.shot_constants
         self.nominal_initial_state = cfg["nominal_initial_state"]
         # Declare the normalized action space.
-        self.action_space = gym.spaces.Box(
-            low=-1.0 * np.ones(len(self.ACTION_RANGES)),
-            high=np.ones(len(self.ACTION_RANGES)),
+        self.action_space = jnp.vstack(
+            (-1.0 * np.ones(len(self.ACTION_RANGES)), np.ones(len(self.ACTION_RANGES)))
         )
 
-        # Declare the space of random parameters.
-        self.random_param_space = gym.spaces.Dict(
-            {
-                param_name: gym.spaces.Box(*param_range)
-                for param_name, param_range in self.RANDOM_PARAM_RANGES.items()
-            }
-        )
-
-        self.observation_space = gym.spaces.Box(
-            low=-1.0 * np.ones(len(self.CONT_STATE_RANGES)),
-            high=np.ones(len(self.CONT_STATE_RANGES)),
-        )
-
-    def random_initial_state(self):
+    def sample_state(self, prng_key):
         """
         Generate a random initial state.
+
+        Args:
+            prng_key (jax.random.PRNGKey): A PRNG key.
         """
-        state = copy.deepcopy(self.nominal_initial_state)
-        for var, percent_variation in self.RANDOM_INITIAL_STATE_PERCENT_VAR.items():
-            fractional_variation = (
-                0.01 * percent_variation * self.np_random.uniform(low=-1.0, high=1.0)
-            )
-            state[var] = state[var] + fractional_variation * state[var]
-        return state
+        initial_state = jax.tree_util.tree_map(
+            lambda x: jnp.array(x), self.nominal_initial_state
+        )
+        initial_state["Hmode"] = jnp.array(1)
+        fractional_variation = jax.tree_util.tree_map(
+            lambda x: 0.01 * x * jax.random.uniform(prng_key, minval=-1.0, maxval=1.0),
+            self.RANDOM_INITIAL_STATE_PERCENT_VAR,
+        )
+        for key, variation in fractional_variation.items():
+            initial_state[key] = initial_state[key] * (1 + variation)
 
-    def reset(self, seed=None, options=None):
-        # Use the following to seed self.np_random
-        super().reset(seed=seed)
+        return initial_state
 
-        # Reset time.
-        self.time = 0.0
-
+    def sample_params(self, prng_key):
         """
-        Compute a random initial state.
-        """
-        self.state = self.random_initial_state()
+        Generate a random set of parameters.
 
+        Args:
+            prng_key (jax.random.PRNGKey): A PRNG key.
         """
-        Compute a random parameter set.
+        # Extract upper and lower bounds
+        param_ubs = {key: bounds[1] for key, bounds in self.RANDOM_PARAM_RANGES.items()}
+        param_lbs = {key: bounds[0] for key, bounds in self.RANDOM_PARAM_RANGES.items()}
+        # Choose a random parameter uniformly in the range
+        params = {}
+        for param_key, (ub, lb) in self.RANDOM_PARAM_RANGES.items():
+            prng_key, key = jax.random.split(prng_key)
+            params[param_key] = jax.random.uniform(key, minval=lb, maxval=ub)
+
+        return params
+
+    def sample_action(self, prng_key):
+        return jax.random.uniform(
+            prng_key, minval=-1.0, maxval=1.0, shape=(len(self.ACTION_RANGES),)
+        )
+
+    def reset(self, prng_key):
         """
-        self.random_params = self.random_param_space.sample()
-        self.random_params = jax.tree_map(lambda val: val.squeeze(), self.random_params)
+        Reset the environment.
 
-        info = {}
+        Args:
+            prng_key (jax.random.PRNGKey): A PRNG key.
+        """
+        # Compute a random initial state.
+        prng_key, state_key = jax.random.split(prng_key)
+        state = self.sample_state(state_key)
 
-        return self.state_to_obs(self.state), info
+        # Compute a random parameter set.
+        prng_key, param_key = jax.random.split(prng_key)
+        random_params = self.sample_params(param_key)
+        random_params = jax.tree_map(lambda val: val.squeeze(), random_params)
+
+        info = {"time": 0.0}
+
+        return random_params, state, self.state_to_obs(state), info
 
     def unnormalize_action(self, action) -> dict:
         """Given an action sampled from the normalized action space, unnormalize it.
@@ -130,16 +145,34 @@ class PopDownGym(gym.Env):
         """
         for i, (action_name, action_val) in enumerate(action.items()):
             action_space_range = (
-                self.action_space.low[i],
-                self.action_space.high[i],
+                self.action_space[0][i],
+                self.action_space[1][i],
             )
             action[action_name] = remap_range(
                 action_val, action_space_range, self.ACTION_RANGES[action_name]
             )
         return action
 
-    @partial(jax.jit, static_argnums=(0,))  # , backend="cpu")  # TODO is this needed?
-    def _step(self, state, action):
+    def check_out_of_bounds(self, obs):
+        """Check if the given observations are in bounds or not"""
+        # TODO currently, the observation range seems to be [-1, 1], not
+        # the range given in CONT_STATE_RANGES
+        each_obs_in_bounds = jax.tree_map(
+            lambda x: jnp.logical_and(x >= -1.0, x <= 1.0), obs
+        )
+        out_of_bounds = jnp.logical_not(jnp.all(each_obs_in_bounds))
+        return out_of_bounds
+
+    @partial(jax.jit, static_argnums=(0,))
+    def _step(self, params, state, action):
+        """
+        Step the environment forward in time.
+
+        Args:
+            params (dict): The current random parameters.
+            state (dict): The current state.
+            action (dict): The current action.
+        """
         ts = jnp.array([0.0, self.DT])  # Time steps.
 
         # Initial State.
@@ -155,13 +188,14 @@ class PopDownGym(gym.Env):
         # [Hmode, Hfactor, Zeff, ion_dilution, Te_over_Ti, f_dt, tau_n_factor, prad_mult]
         params = {
             "Hmode": state["Hmode"],
-            "Hfactor": self.random_params["Hfactor"],
-            "Zeff": self.random_params["Zeff"],
-            "ion_dilution": self.random_params["ion_dilution"],
-            "Te_over_Ti": self.random_params["Te_over_Ti"],
+            "HL_FUDGE": params["HL_FUDGE"],
+            "Hfactor": params["Hfactor"],
+            "Zeff": params["Zeff"],
+            "ion_dilution": params["ion_dilution"],
+            "Te_over_Ti": params["Te_over_Ti"],
             "f_dt": 0.5,
-            "tau_n_factor": self.random_params["tau_n_factor"],
-            "prad_mult": self.random_params["prad_mult"],
+            "tau_n_factor": params["tau_n_factor"],
+            "prad_mult": params["prad_mult"],
         }
 
         # SimFFControl needs controls at all time steps in "ts".
@@ -187,7 +221,7 @@ class PopDownGym(gym.Env):
             info["aminor"],
             self.shot_constants.R0,
         )
-        PHL = self.random_params["HL_FUDGE"] * PLH
+        PHL = params["HL_FUDGE"] * PLH
         Hmode_new = jnp.where(
             jnp.logical_and(state["Hmode"] == 1, Ploss < PHL), 0, state["Hmode"]
         )
@@ -269,7 +303,7 @@ class PopDownGym(gym.Env):
         }
         return state_new, reward_inputs
 
-    def step(self, action):
+    def step(self, t, params, state, action):
         """
         Step the environment forward in time.
         """
@@ -279,27 +313,26 @@ class PopDownGym(gym.Env):
             for i, action_name in enumerate(self.ACTION_RANGES.keys())
         }
         unnormalized_action = self.unnormalize_action(action)
-        prev_state = self.state
-        new_state, reward_inputs = self._step(prev_state, unnormalized_action)
-        self.state = new_state
+        new_state, reward_inputs = self._step(params, state, unnormalized_action)
         reward, reward_terms = self.reward_model.reward(
             reward_inputs, unnormalized_action
         )
-        self.time += self.DT
+        next_time = t + self.DT
 
-        truncated = self.time >= self.TIME_LIMIT
+        truncated = next_time >= self.TIME_LIMIT
         hit_goal = reward_terms["hit_goal_reward"] > 0.0
-        obs = self.state_to_obs(self.state)
-        out_of_bounds = not self.observation_space.contains(list(obs))
-        terminated = truncated or out_of_bounds or hit_goal
+        obs = self.state_to_obs(new_state)
+        out_of_bounds = self.check_out_of_bounds(obs)
+        terminated = jnp.logical_or(truncated, out_of_bounds)
+        terminated = jnp.logical_or(terminated, hit_goal)
 
         info = {
-            "time": self.time,
-            "state": self.state,
+            "time": next_time,
+            "state": state,
             "action": unnormalized_action,
             "reward_inputs": reward_inputs,
             "reward_terms": reward_terms,
-            "random_params": self.random_params,
+            "random_params": params,
             "hit_goal": hit_goal,
             "out_of_bounds": out_of_bounds,
         }
@@ -308,18 +341,63 @@ class PopDownGym(gym.Env):
 
     def state_to_obs(self, state):
         continuous = {k: v for k, v in state.items() if k != "Hmode"}
-        obs = np.zeros(len(continuous))
+        obs = jnp.zeros(len(continuous))
         # In this problem, we define the observations as the continuous states normalized to [-1, 1].
         # TODO(allenw): fair question to be asked
-        for i, (key, value) in enumerate(continuous.items()):
-            obs[i] = remap_range(value, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
+        range_lb = jax.tree_map(lambda x: x[0], self.CONT_STATE_RANGES)
+        range_ub = jax.tree_map(lambda x: x[1], self.CONT_STATE_RANGES)
+        obs = jax.tree_map(
+            lambda value, lb, ub: remap_range(value, (lb, ub), (-1.0, 1.0)),
+            continuous,
+            range_lb,
+            range_ub,
+        )
         return obs
+
+    def simulate_trajectory_open_loop(self, prng_key, open_loop_actions, steps=100):
+        """
+        Simulate an open-loop trajectory for a fixed number of steps.
+
+        Starts from a random initial state and with random parameters
+
+        Args:
+            prng_key (jax.random.PRNGKey): A PRNG key.
+            open_loop_controls (dict): A dictionary of open-loop controls.
+            steps (int): The number of steps to simulate.
+        """
+        # Sample random parameters and initial state
+        state_key, param_key = jax.random.split(prng_key)
+        initial_state = self.sample_state(state_key)
+        params = self.sample_params(param_key)
+
+        # Define a step function to simulate using scan
+        def scan_step(carry, input):
+            # Unpack the carry
+            state, t = carry
+            action = input
+
+            # Step the environment
+            _, reward, _, _, info = self.step(t, params, state, action)
+
+            # prepare the carry for the next iteration
+            carry = (info["state"], info["time"])
+            output = (reward, info["state"])
+
+            return carry, output
+
+        # Simulate the trajectory
+        _, (rewards, states) = jax.lax.scan(
+            scan_step, (initial_state, 0.0), open_loop_actions
+        )
+
+        return rewards.sum(), states
 
 
 if __name__ == "__main__":
     config_filepath = os.path.join(os.path.dirname(__file__), "configs/gym.yaml")
     config = yaml.safe_load(open(config_filepath, "r"))
     model, _ = Model.create_default()
-    env = PopDownGym(config, model)
-    obs, info = env.reset()
-    out = env.step(env.action_space.sample())
+    env = PopDownGymStateless(config, model)
+    key = jax.random.PRNGKey(0)
+    params, state, obs, info = env.reset(key)
+    env.step(info["time"], params, state, env.sample_action(key))
