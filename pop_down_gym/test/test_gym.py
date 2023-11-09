@@ -66,7 +66,9 @@ def benchmark_simulate(num_trials: int = 100):
         sim_keys = jax.random.split(prng_key, batch_size)
 
         # Burn-in
-        fn = lambda key, actions: env.simulate_trajectory_open_loop(key, actions, num_steps)
+        fn = lambda key, actions: env.simulate_trajectory_open_loop(
+            key, actions, num_steps
+        )
         fn = jax.jit(jax.vmap(fn))
         fn(sim_keys, actions)
 

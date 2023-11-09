@@ -98,12 +98,9 @@ class PopDownGymStateless:
         Args:
             prng_key (jax.random.PRNGKey): A PRNG key.
         """
-        # Extract upper and lower bounds
-        param_ubs = {key: bounds[1] for key, bounds in self.RANDOM_PARAM_RANGES.items()}
-        param_lbs = {key: bounds[0] for key, bounds in self.RANDOM_PARAM_RANGES.items()}
         # Choose a random parameter uniformly in the range
         params = {}
-        for param_key, (ub, lb) in self.RANDOM_PARAM_RANGES.items():
+        for param_key, (lb, ub) in self.RANDOM_PARAM_RANGES.items():
             prng_key, key = jax.random.split(prng_key)
             params[param_key] = jax.random.uniform(key, minval=lb, maxval=ub)
 
@@ -113,6 +110,14 @@ class PopDownGymStateless:
         return jax.random.uniform(
             prng_key, minval=-1.0, maxval=1.0, shape=(len(self.ACTION_RANGES),)
         )
+
+    @property
+    def n_obs(self):
+        return len(self.CONT_STATE_RANGES)
+
+    @property
+    def n_actions(self):
+        return len(self.ACTION_RANGES)
 
     def reset(self, prng_key):
         """
@@ -328,7 +333,7 @@ class PopDownGymStateless:
 
         info = {
             "time": next_time,
-            "state": state,
+            "state": new_state,
             "action": unnormalized_action,
             "reward_inputs": reward_inputs,
             "reward_terms": reward_terms,
@@ -344,14 +349,10 @@ class PopDownGymStateless:
         obs = jnp.zeros(len(continuous))
         # In this problem, we define the observations as the continuous states normalized to [-1, 1].
         # TODO(allenw): fair question to be asked
-        range_lb = jax.tree_map(lambda x: x[0], self.CONT_STATE_RANGES)
-        range_ub = jax.tree_map(lambda x: x[1], self.CONT_STATE_RANGES)
-        obs = jax.tree_map(
-            lambda value, lb, ub: remap_range(value, (lb, ub), (-1.0, 1.0)),
-            continuous,
-            range_lb,
-            range_ub,
-        )
+        for i, (key, value) in enumerate(continuous.items()):
+            obs = obs.at[i].set(
+                remap_range(value, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
+            )
         return obs
 
     def simulate_trajectory_open_loop(self, prng_key, open_loop_actions, steps=100):
@@ -400,4 +401,6 @@ if __name__ == "__main__":
     env = PopDownGymStateless(config, model)
     key = jax.random.PRNGKey(0)
     params, state, obs, info = env.reset(key)
-    env.step(info["time"], params, state, env.sample_action(key))
+    obs, reward, terminated, truncated, info = env.step(
+        info["time"], params, state, env.sample_action(key)
+    )
