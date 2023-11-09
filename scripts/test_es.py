@@ -17,12 +17,13 @@ if __name__ == "__main__":
     prng_key = jax.random.PRNGKey(0)
 
     # Load the environment
-    env = create_env()
+    env, _ = create_env()
 
     # Load the best policy trained using ES
-    hidden_dims = 256
+    hidden_dims = 512
+    hidden_layers = 4
     prng_key, policy_key = jax.random.split(prng_key)
-    mlp = MLP(policy_key, env.n_obs, hidden_dims, env.n_actions)
+    mlp = MLP(policy_key, env.n_obs, hidden_layers, hidden_dims, env.n_actions)
     mlp = eqx.tree_deserialise_leaves("tmp/es_best_policy.eqx", mlp)
 
     # Simulate the policy over a bunch of random rollouts
@@ -52,7 +53,7 @@ if __name__ == "__main__":
             axs[1, i].axhline(
                 env.reward_model.ip_ma["target"], color="k", linestyle="--"
             )
-        
+
     axs[2, 0].plot(t.T, reward_traces.T)
     axs[2, 0].set_title("Reward")
 
