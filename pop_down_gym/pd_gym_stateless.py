@@ -1,8 +1,6 @@
-import copy
 import os
 from functools import partial
 
-import gymnasium as gym
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -26,7 +24,7 @@ class PopDownGymStateless:
         "gs": (0.0, 1.0),  # Geometry evolution parameter [0]
     }
 
-    """ 
+    """
     When generating a random initial state, we allow each state variable
     to vary by a certain percentage of its nominal value. If the variable
     is not included in this dict, then it is not varied.

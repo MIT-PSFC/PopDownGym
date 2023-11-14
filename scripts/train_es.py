@@ -89,10 +89,17 @@ def plot_rollout_results(t, states, reward_inputs, rewards):
         ax.plot(t.T, term.T)
 
         if var in env.reward_model.limits:
-            ax.plot(t.T, t.T * 0 + env.reward_model.limits[var], color="k", linestyle="--")
+            ax.plot(
+                t.T, t.T * 0 + env.reward_model.limits[var], color="k", linestyle="--"
+            )
 
         if var == "Ip_MA":
-            ax.plot(t.T, t.T * 0 + env.reward_model.ip_ma["target"], color="k", linestyle="--")
+            ax.plot(
+                t.T,
+                t.T * 0 + env.reward_model.ip_ma["target"],
+                color="k",
+                linestyle="--",
+            )
 
         ax.set_ylabel(var)
         ax.set_xlabel("Time (s)")

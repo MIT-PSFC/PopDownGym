@@ -1,17 +1,8 @@
 """Test the policy trained using ES."""
-
-import os
-
 import equinox as eqx
-import evosax as es
 import jax
 import matplotlib.pyplot as plt
-import yaml
-from tqdm import tqdm
 from train_es import MLP, create_env, rollout_closed_loop
-
-from pop_down_gym.model import Model
-from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 if __name__ == "__main__":
     prng_key = jax.random.PRNGKey(0)
