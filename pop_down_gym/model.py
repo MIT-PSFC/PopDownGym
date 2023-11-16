@@ -8,9 +8,6 @@ from pop_down_gym import constants
 from pop_down_gym.geometry import Geometry
 from pop_down_gym.profiles import ProfileBases
 
-# jax.config.update("jax_platform_name", "cpu")  # TODO is this needed?
-
-
 class Model:
     geom: Geometry
     hmode_prof_basis: ProfileBases
