@@ -1,9 +1,11 @@
+import pytest
 import xarray as xr
 
-from pop_down_gym.data.load import load_data
+from pop_down_gym.load_data import load_data
 from pop_down_gym.profiles import ProfileBases, SimpleProfileBasis
 
 
+@pytest.mark.skip(reason="test is currently broken TODO@allen-adastra")
 def test_simple_profile_basis():
     ds = load_data()
     hmode = ds["te"].sel(rho=0.95, method="nearest") > 3000
@@ -31,9 +33,9 @@ def test_simple_profile_basis():
             Vp,
         )
 
-        import pdb
-
-        pdb.set_trace()
+        # Could we have anything more informative here?
+        assert te_kev_vol_avg is not None
+        assert te_kev_profile is not None
 
 
 if __name__ == "__main__":

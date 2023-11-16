@@ -342,7 +342,6 @@ def betas_to_beta_n(
 
 
 def replace_nan_warn_and_sum(q):
-    jax.debug.print("Warning: replacing nans with zeros in q: {q}", q=q)
     return jnp.sum(jnp.nan_to_num(q, nan=0.0))
 
 

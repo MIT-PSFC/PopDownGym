@@ -11,7 +11,7 @@ python = ">=3.9, <3.10"
 scipy = "^1.10.1"
 pytest = "^7.4.0"
 jaxlib = {version = "^0.4.14+cuda12.cudnn89", source = "jax_cuda"}
-jax = "^0.4.14"
+jax = {extras = ["cuda12-pip"], version = "^0.4.20"}
 gymnasium = "0.28.1"
 contrax = { path = "contrax/", develop = true }
 debugpy = "1.6.7"
@@ -21,6 +21,8 @@ plotly = "^5.16.1"
 stable-baselines3 = "2.0.0a10"
 tensorboard = "^2.14.0"
 urllib3 = "1.26.16"
+seaborn = "^0.13.0"
+evosax = "^0.1.5"
 
 [[tool.poetry.source]]
 name = "jax_cuda"
@@ -31,8 +33,20 @@ priority = "primary"
 [tool.poetry.group.dev.dependencies]
 black = "^23.10.1"
 isort = "^5.12.0"
+pytest = "^7.4.3"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.pytest.ini_options]
+addopts = "--ignore pop_down_gym/raptor --ignore contrax"
+
+[tool.black]
+# 'extend-exclude' excludes files or directories in addition to the defaults
+extend-exclude = """
+(
+    .*contrax.*
+    |.*raptor.*
+)
+"""

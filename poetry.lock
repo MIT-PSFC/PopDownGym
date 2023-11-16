@@ -1091,6 +1091,25 @@ etree-tf = ["etils[etree]", "tensorflow"]
 lazy-imports = ["etils[ecolab]"]
 
 [[package]]
+name = "evosax"
+version = "0.1.5"
+description = "JAX-Based Evolution Strategies"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "evosax-0.1.5-py3-none-any.whl", hash = "sha256:fd69412ede6686d5bf7f42197aff2ad8b5a71e9be9378570fb53b3d6f937d068"},
+    {file = "evosax-0.1.5.tar.gz", hash = "sha256:76e6c90674647c7c602050b73e7c4dc873c3b854f79ec0d285dffdea436bac25"},
+]
+
+[package.dependencies]
+chex = "*"
+flax = "*"
+jax = "*"
+matplotlib = "*"
+numpy = "*"
+pyyaml = "*"
+
+[[package]]
 name = "exceptiongroup"
 version = "1.1.3"
 description = "Backport of PEP 654 (exception groups)"
@@ -1679,33 +1698,45 @@ requirements-deprecated-finder = ["pip-api", "pipreqs"]
 
 [[package]]
 name = "jax"
-version = "0.4.14"
+version = "0.4.20"
 description = "Differentiate, compile, and transform Numpy code."
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "jax-0.4.14.tar.gz", hash = "sha256:18fed3881f26e8b13c8cb46eeeea3dba9eb4d48e3714d8e8f2304dd6e237083d"},
+    {file = "jax-0.4.20-py3-none-any.whl", hash = "sha256:3d5952197adca548d99310f1c326bf00548f1cc8652b89edb369166482c2aec2"},
+    {file = "jax-0.4.20.tar.gz", hash = "sha256:ea96a763a8b1a9374639d1159ab4de163461d01cd022f67c34c09581b71ed2ac"},
 ]
 
 [package.dependencies]
-importlib_metadata = {version = ">=4.6", markers = "python_version < \"3.10\""}
-ml_dtypes = ">=0.2.0"
+importlib-metadata = {version = ">=4.6", markers = "python_version < \"3.10\""}
+jaxlib = {version = "0.4.20+cuda12.cudnn89", optional = true, markers = "extra == \"cuda12_pip\""}
+ml-dtypes = ">=0.2.0"
 numpy = ">=1.22"
-opt_einsum = "*"
-scipy = ">=1.7"
+nvidia-cublas-cu12 = {version = ">=12.2.5.6", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cuda-cupti-cu12 = {version = ">=12.2.142", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cuda-nvcc-cu12 = {version = ">=12.2.140", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cuda-runtime-cu12 = {version = ">=12.2.140", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cudnn-cu12 = {version = ">=8.9", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cufft-cu12 = {version = ">=11.0.8.103", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cusolver-cu12 = {version = ">=11.5.2", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-cusparse-cu12 = {version = ">=12.1.2.141", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-nccl-cu12 = {version = ">=2.18.3", optional = true, markers = "extra == \"cuda12_pip\""}
+nvidia-nvjitlink-cu12 = {version = ">=12.2", optional = true, markers = "extra == \"cuda12_pip\""}
+opt-einsum = "*"
+scipy = ">=1.9"
 
 [package.extras]
 australis = ["protobuf (>=3.13,<4)"]
-ci = ["jaxlib (==0.4.13)"]
-cpu = ["jaxlib (==0.4.14)"]
-cuda = ["jaxlib (==0.4.14+cuda11.cudnn86)"]
-cuda11-cudnn86 = ["jaxlib (==0.4.14+cuda11.cudnn86)"]
-cuda11-local = ["jaxlib (==0.4.14+cuda11.cudnn86)"]
-cuda11-pip = ["jaxlib (==0.4.14+cuda11.cudnn86)", "nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)"]
-cuda12-local = ["jaxlib (==0.4.14+cuda12.cudnn89)"]
-cuda12-pip = ["jaxlib (==0.4.14+cuda12.cudnn89)", "nvidia-cublas-cu12", "nvidia-cuda-cupti-cu12", "nvidia-cuda-nvcc-cu12", "nvidia-cuda-runtime-cu12", "nvidia-cudnn-cu12 (>=8.9)", "nvidia-cufft-cu12", "nvidia-cusolver-cu12", "nvidia-cusparse-cu12"]
-minimum-jaxlib = ["jaxlib (==0.4.11)"]
-tpu = ["jaxlib (==0.4.14)", "libtpu-nightly (==0.1.dev20230727)"]
+ci = ["jaxlib (==0.4.19)"]
+cpu = ["jaxlib (==0.4.20)"]
+cuda = ["jaxlib (==0.4.20+cuda11.cudnn86)"]
+cuda11-cudnn86 = ["jaxlib (==0.4.20+cuda11.cudnn86)"]
+cuda11-local = ["jaxlib (==0.4.20+cuda11.cudnn86)"]
+cuda11-pip = ["jaxlib (==0.4.20+cuda11.cudnn86)", "nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)", "nvidia-nccl-cu11 (>=2.18.3)"]
+cuda12-local = ["jaxlib (==0.4.20+cuda12.cudnn89)"]
+cuda12-pip = ["jaxlib (==0.4.20+cuda12.cudnn89)", "nvidia-cublas-cu12 (>=12.2.5.6)", "nvidia-cuda-cupti-cu12 (>=12.2.142)", "nvidia-cuda-nvcc-cu12 (>=12.2.140)", "nvidia-cuda-runtime-cu12 (>=12.2.140)", "nvidia-cudnn-cu12 (>=8.9)", "nvidia-cufft-cu12 (>=11.0.8.103)", "nvidia-cusolver-cu12 (>=11.5.2)", "nvidia-cusparse-cu12 (>=12.1.2.141)", "nvidia-nccl-cu12 (>=2.18.3)", "nvidia-nvjitlink-cu12 (>=12.2)"]
+minimum-jaxlib = ["jaxlib (==0.4.14)"]
+tpu = ["jaxlib (==0.4.20)", "libtpu-nightly (==0.1.dev20231102)", "requests"]
 
 [[package]]
 name = "jax-cosmo"
@@ -1760,20 +1791,25 @@ testing = ["pytest (==7.1.3)"]
 
 [[package]]
 name = "jaxlib"
-version = "0.4.14+cuda12.cudnn89"
+version = "0.4.20+cuda12.cudnn89"
 description = "XLA library for JAX"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "jaxlib-0.4.14+cuda12.cudnn89-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:c663b0ec48e7bc15afba82dbc62f0eb1212d67f91a1aaad6779b7f7165d07130"},
-    {file = "jaxlib-0.4.14+cuda12.cudnn89-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:4a5a9195d3345669db04bd699d13cada4142bfbab8677b36463445c66d00c752"},
-    {file = "jaxlib-0.4.14+cuda12.cudnn89-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:d032b812505a99b823724798df05009bc4f471377d4ff8417c358408df684eb6"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:36e8c29e5b82291a3b6cbb648125c896f28b67381eed748dcfe4587764cb6682"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:4cbab7cf74f67e34dc3b71126a16e8286df79ab3a98ed8fd0bdd9fe1de2724aa"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:7318d225bf9f5cdc676ef771e73abfaf89af5377b92c868540c4873fa4d53198"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:0945f0c89ab41cea368f74b0f8d82e0429c5903b89a5cdf07d951cf74cb284e6"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:f7dd3e3b64b357592cfe309a1fcc597c85328b6fbce276beee90ebc9bcd9b201"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:6c047c14bb62aae7d4fab2f66b5abd73ad428c7d5e5f11933469c35241e50c10"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:b72536c5bdb53057e43a54dc5ef6d7445766f3090cb6b9eb3c62f7223ec33669"},
+    {file = "jaxlib-0.4.20+cuda12.cudnn89-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:54cd87bb23271be873aec4d0101e4a269aa9057cb2a7e795d4b571998d590865"},
 ]
 
 [package.dependencies]
 ml-dtypes = ">=0.2.0"
 numpy = ">=1.22"
-scipy = ">=1.7"
+scipy = ">=1.9"
 
 [package.extras]
 cuda11-pip = ["nvidia-cublas-cu11 (>=11.11)", "nvidia-cuda-cupti-cu11 (>=11.8)", "nvidia-cuda-nvcc-cu11 (>=11.8)", "nvidia-cuda-runtime-cu11 (>=11.8)", "nvidia-cudnn-cu11 (>=8.8)", "nvidia-cufft-cu11 (>=10.9)", "nvidia-cusolver-cu11 (>=11.4)", "nvidia-cusparse-cu11 (>=11.7)"]
@@ -3037,6 +3073,39 @@ setuptools = "*"
 wheel = "*"
 
 [[package]]
+name = "nvidia-cublas-cu12"
+version = "12.3.2.9"
+description = "CUBLAS native runtime libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cublas_cu12-12.3.2.9-py3-none-manylinux1_x86_64.whl", hash = "sha256:87cc0514009361159b85a65e2f63a7df5ff6363a9e77800f0549b44b583b917a"},
+    {file = "nvidia_cublas_cu12-12.3.2.9-py3-none-win_amd64.whl", hash = "sha256:23e288e14cadd24eb645a11215326449cfd763f809dc6552bb4db0e1983cdf8e"},
+]
+
+[[package]]
+name = "nvidia-cuda-cupti-cu12"
+version = "12.3.52"
+description = "CUDA profiling tools runtime libs."
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cuda_cupti_cu12-12.3.52-py3-none-manylinux1_x86_64.whl", hash = "sha256:04e29413fcf41a2bbdebf8700cb39fbb5ffe505d1ee848ec00fbbecdeaf5bfe3"},
+    {file = "nvidia_cuda_cupti_cu12-12.3.52-py3-none-win_amd64.whl", hash = "sha256:c0ffeba5389f5eff51949172cb8e3374719136f5e9ff23c70ee8634e089bb858"},
+]
+
+[[package]]
+name = "nvidia-cuda-nvcc-cu12"
+version = "12.3.52"
+description = "CUDA nvcc"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cuda_nvcc_cu12-12.3.52-py3-none-manylinux1_x86_64.whl", hash = "sha256:b32cc7a9e9438d575e168bb0e5db18678dca9d3faedc45d79c1fbaa06e75aa40"},
+    {file = "nvidia_cuda_nvcc_cu12-12.3.52-py3-none-win_amd64.whl", hash = "sha256:43858404db4b767649a01a9f205dbf7b0f39a91dc343b88473f49e7eecd0590b"},
+]
+
+[[package]]
 name = "nvidia-cuda-nvrtc-cu11"
 version = "11.7.99"
 description = "NVRTC native runtime libraries"
@@ -3051,6 +3120,17 @@ files = [
 [package.dependencies]
 setuptools = "*"
 wheel = "*"
+
+[[package]]
+name = "nvidia-cuda-nvrtc-cu12"
+version = "12.3.52"
+description = "NVRTC native runtime libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cuda_nvrtc_cu12-12.3.52-py3-none-manylinux1_x86_64.whl", hash = "sha256:22f24e1d980ebab0f3b33539248bf523b4f54ee381fcfb4534bfee32882317c6"},
+    {file = "nvidia_cuda_nvrtc_cu12-12.3.52-py3-none-win_amd64.whl", hash = "sha256:c1330498a6ac669edcf60b51c46d10b8983870d78c28fb18707f9d04705d3b78"},
+]
 
 [[package]]
 name = "nvidia-cuda-runtime-cu11"
@@ -3068,6 +3148,17 @@ setuptools = "*"
 wheel = "*"
 
 [[package]]
+name = "nvidia-cuda-runtime-cu12"
+version = "12.3.52"
+description = "CUDA Runtime native Libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cuda_runtime_cu12-12.3.52-py3-none-manylinux1_x86_64.whl", hash = "sha256:038de2d9e9aa0f07fcd4b9615a7ea23ef28bca0073b0f212e4201246b386bfec"},
+    {file = "nvidia_cuda_runtime_cu12-12.3.52-py3-none-win_amd64.whl", hash = "sha256:7e6f2933e8ed25964a2f38bc9f74f6bbfd0eafacab07452e513ed2acf971e42e"},
+]
+
+[[package]]
 name = "nvidia-cudnn-cu11"
 version = "8.5.0.96"
 description = "cuDNN runtime libraries"
@@ -3081,6 +3172,83 @@ files = [
 [package.dependencies]
 setuptools = "*"
 wheel = "*"
+
+[[package]]
+name = "nvidia-cudnn-cu12"
+version = "8.9.6.50"
+description = "cuDNN runtime libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cudnn_cu12-8.9.6.50-py3-none-manylinux1_x86_64.whl", hash = "sha256:02fbdf6a9f00ba88da68b275d1f175111cc01bbe2294fb688cd309fd61af8844"},
+    {file = "nvidia_cudnn_cu12-8.9.6.50-py3-none-win_amd64.whl", hash = "sha256:acfc4447a9345e8ba525e3b0641ee64bdfd35189ab9904241814ff991792f77a"},
+]
+
+[package.dependencies]
+nvidia-cublas-cu12 = "*"
+nvidia-cuda-nvrtc-cu12 = "*"
+
+[[package]]
+name = "nvidia-cufft-cu12"
+version = "11.0.11.19"
+description = "CUFFT native runtime libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cufft_cu12-11.0.11.19-py3-none-manylinux1_x86_64.whl", hash = "sha256:4fa118f90ba8e77eb71a51f4d8a3e1db1ae1f966f5087947d0e8438e3da17ad4"},
+    {file = "nvidia_cufft_cu12-11.0.11.19-py3-none-win_amd64.whl", hash = "sha256:3e3a65ee5e02f6a811fb449d04b101989877a29c04751c63b3f15a61122b0de1"},
+]
+
+[[package]]
+name = "nvidia-cusolver-cu12"
+version = "11.5.3.52"
+description = "CUDA solver native runtime libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cusolver_cu12-11.5.3.52-py3-none-manylinux1_x86_64.whl", hash = "sha256:c806e563ece3e8390cc9e582458435068532dc28425f46f2026a2684671f7cd2"},
+    {file = "nvidia_cusolver_cu12-11.5.3.52-py3-none-win_amd64.whl", hash = "sha256:ea9a94ae016937e23dd6610493df7239d47d4a6a805c78bbbccbe07cda0a9e17"},
+]
+
+[package.dependencies]
+nvidia-cublas-cu12 = "*"
+nvidia-cusparse-cu12 = "*"
+nvidia-nvjitlink-cu12 = "*"
+
+[[package]]
+name = "nvidia-cusparse-cu12"
+version = "12.1.3.153"
+description = "CUSPARSE native runtime libraries"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_cusparse_cu12-12.1.3.153-py3-none-manylinux1_x86_64.whl", hash = "sha256:592736e39e5ad427ce809bf42e0fd34fa42a8b7591ea792d42b1b321e3b3eae2"},
+    {file = "nvidia_cusparse_cu12-12.1.3.153-py3-none-win_amd64.whl", hash = "sha256:7f70c34d7177e1fc0a8cefc51908e88e95414062a19bc0c60b426d722b3add53"},
+]
+
+[package.dependencies]
+nvidia-nvjitlink-cu12 = "*"
+
+[[package]]
+name = "nvidia-nccl-cu12"
+version = "2.19.3"
+description = "NVIDIA Collective Communication Library (NCCL) Runtime"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_nccl_cu12-2.19.3-py3-none-manylinux1_x86_64.whl", hash = "sha256:a9734707a2c96443331c1e48c717024aa6678a0e2a4cb66b2c364d18cee6b48d"},
+]
+
+[[package]]
+name = "nvidia-nvjitlink-cu12"
+version = "12.3.52"
+description = "Nvidia JIT LTO Library"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "nvidia_nvjitlink_cu12-12.3.52-py3-none-manylinux1_x86_64.whl", hash = "sha256:93db4dba8cb66fe2a351791e557208345bb9d0ace1bfb9dd05a4812f9a3ac74e"},
+    {file = "nvidia_nvjitlink_cu12-12.3.52-py3-none-win_amd64.whl", hash = "sha256:9e403610da6ebceee897371a6982433ec997a9279d2320840413ce82a1d28ddc"},
+]
 
 [[package]]
 name = "oauthlib"
@@ -3707,13 +3875,13 @@ test = ["pytest", "pytest-cov", "requests", "webob", "webtest"]
 
 [[package]]
 name = "pytest"
-version = "7.4.0"
+version = "7.4.3"
 description = "pytest: simple powerful testing with Python"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pytest-7.4.0-py3-none-any.whl", hash = "sha256:78bf16451a2eb8c7a2ea98e32dc119fd2aa758f1d5d66dbf0a59d69a3969df32"},
-    {file = "pytest-7.4.0.tar.gz", hash = "sha256:b4bf8c45bd59934ed84001ad51e11b4ee40d40a1229d2c79f9c592b0a3f6bd8a"},
+    {file = "pytest-7.4.3-py3-none-any.whl", hash = "sha256:0d009c083ea859a71b76adf7c1d502e4bc170b80a8ef002da5806527b9591fac"},
+    {file = "pytest-7.4.3.tar.gz", hash = "sha256:d989d136982de4e3b29dabcc838ad581c64e8ed52c11fbe86ddebd9da0818cd5"},
 ]
 
 [package.dependencies]
@@ -4429,6 +4597,27 @@ numpy = ">=1.21.6,<1.28.0"
 dev = ["click", "cython-lint (>=0.12.2)", "doit (>=0.36.0)", "mypy", "pycodestyle", "pydevtool", "rich-click", "ruff", "types-psutil", "typing_extensions"]
 doc = ["jupytext", "matplotlib (>2)", "myst-nb", "numpydoc", "pooch", "pydata-sphinx-theme (==0.9.0)", "sphinx (!=4.1.0)", "sphinx-design (>=0.2.0)"]
 test = ["asv", "gmpy2", "mpmath", "pooch", "pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "scikit-umfpack", "threadpoolctl"]
+
+[[package]]
+name = "seaborn"
+version = "0.13.0"
+description = "Statistical data visualization"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "seaborn-0.13.0-py3-none-any.whl", hash = "sha256:70d740828c48de0f402bb17234e475eda687e3c65f4383ea25d0cc4728f7772e"},
+    {file = "seaborn-0.13.0.tar.gz", hash = "sha256:0e76abd2ec291c655b516703c6a022f0fd5afed26c8e714e8baef48150f73598"},
+]
+
+[package.dependencies]
+matplotlib = ">=3.3,<3.6.1 || >3.6.1"
+numpy = ">=1.20,<1.24.0 || >1.24.0"
+pandas = ">=1.2"
+
+[package.extras]
+dev = ["flake8", "flit", "mypy", "pandas-stubs", "pre-commit", "pytest", "pytest-cov", "pytest-xdist"]
+docs = ["ipykernel", "nbconvert", "numpydoc", "pydata_sphinx_theme (==0.10.0rc2)", "pyyaml", "sphinx (<6.0.0)", "sphinx-copybutton", "sphinx-design", "sphinx-issues"]
+stats = ["scipy (>=1.7)", "statsmodels (>=0.12)"]
 
 [[package]]
 name = "send2trash"
@@ -5438,4 +5627,4 @@ test = ["pytest"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9, <3.10"
-content-hash = "cbb2b7511bd2908b1365967d6654851f4b7878da9c271b3cf5ab8564d3231f98"
+content-hash = "184849241b9ae06eca9bb208d4ec0156decb3afdac764baf2f20e561e5703a6d"
