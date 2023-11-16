@@ -96,9 +96,6 @@ def plot_df(df, lines=None, title=None):
 if __name__ == "__main__":
     data = loadmat("best_result.mat")
     df = convert_to_df(data["out"])
-    import pdb
-
-    pdb.set_trace()
     df["Wdot_mag"] = np.abs(df["dWtdt"])
 
     # Differentiate Bv.
@@ -119,7 +116,3 @@ if __name__ == "__main__":
     )
 
     plot_df(df[["Ip_dot", "Pauxtot", "kappa"]])
-
-    import pdb
-
-    pdb.set_trace()
