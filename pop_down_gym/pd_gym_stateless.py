@@ -100,7 +100,9 @@ class PopDownGymStateless:
 
     @property
     def n_obs(self):
-        return len(self.cont_state_ranges)
+        # The number of observations is the number of continuous states.
+        # Plus the H-Mode observation.
+        return len(self.cont_state_ranges) + 1
 
     @property
     def n_actions(self):
