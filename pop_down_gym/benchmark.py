@@ -27,7 +27,7 @@ def benchmark_simulate(num_trials: int = 100, batch_sizes = [2**i for i in range
 
         # Burn-in
         def fn(key, action):
-            return env.simulate(key, action, num_steps)
+            return env.simulate_trajectory_open_loop(key, action, num_steps)
         
         fn = jax.jit(jax.vmap(fn))
         fn(sim_keys, actions)
