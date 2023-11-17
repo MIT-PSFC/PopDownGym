@@ -218,7 +218,10 @@ class PopDownGymStateless:
             info["aminor"],
             self.shot_constants.R0,
         )
-        PHL = random_params["HL_FUDGE"] * PLH
+
+        # While there are well-established L->H transition thresholds, the H->L transition is less well understood.
+        # It is often assumed that the H->L transition occurs at some fraction of the L->H threshold.
+        PHL = random_params["hl_factor"] * PLH
         Hmode_new = jnp.where(
             jnp.logical_and(state["Hmode"] == 1, Ploss < PHL), 0, state["Hmode"]
         )

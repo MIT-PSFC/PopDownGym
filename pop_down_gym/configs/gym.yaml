@@ -73,7 +73,7 @@ random_param_ranges:
   ion_dilution:
     - 0.8
     - 0.9
-  HL_FUDGE:
+  hl_factor:
     - 0.55
     - 0.75
   Hfactor:
