@@ -58,7 +58,7 @@ if __name__ == "__main__":
     raptor_steps_per_gym_step = 5
     raptor_gym = RaptorRDGym("/home/awang/raptor", 1e-2, 5)
     raptor_gym.reset()
-    assert raptor_dt * raptor_steps_per_gym_step == policy_interface.train_env.DT
+    assert raptor_dt * raptor_steps_per_gym_step == policy_interface.train_env.dt
     raptor_out, states = run_with_raptor_loop(raptor_gym, policy_interface)
     df = pd.DataFrame(states)
     df = df.applymap(lambda x: 1 if x == True else x)

@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 
 
-
 class TauEInput(eqx.Module):
     IPB98_TABLEAU = {
         "C": 0.0562,
@@ -341,8 +340,10 @@ def betas_to_beta_n(
     betan = beta * a * Bphi0 / Ip_MA
     return betan
 
+
 def replace_nan_warn_and_sum(q):
     return jnp.sum(jnp.nan_to_num(q, nan=0.0))
+
 
 def volume_integral(
     quantity: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray
