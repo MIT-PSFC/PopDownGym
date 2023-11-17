@@ -49,6 +49,9 @@ def rollout_closed_loop(prng_key, env, policy, steps=100):
         # Unpack the carry
         state, obs, t = carry
 
+        # Vectorize observation
+        obs = jax.numpy.hstack((obs["continuous"], obs["Hmode"]))
+
         # Evaluate the policy
         action = policy(obs)
 
@@ -126,7 +129,7 @@ if __name__ == "__main__":
     simulation_steps = 100
     num_generations = 200
     top_k = 5
-    popsize = int(4e2)
+    popsize = int(4e1)
     num_eval_rollouts = int(1e3)
     lrate_init = 1e-2
 
