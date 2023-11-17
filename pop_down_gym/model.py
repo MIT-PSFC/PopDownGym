@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import equinox as eqx
 
 import pop_down_gym
 import pop_down_gym.physics as physics
@@ -9,6 +10,7 @@ from pop_down_gym.profiles import ProfileBases
 from contrax.examples.plasma.li_ip.models import RomeroNNV
 from contrax.simulate import SimFFControl
 
+from pop_down_gym.load_data import load_data
 
 class Model:
     geom: Geometry
@@ -190,10 +192,6 @@ class Model:
 
     @classmethod
     def create_default(cls):
-        import equinox as eqx
-
-        from pop_down_gym.load_data import load_data
-
         ds, ds_geom = load_data()
 
         consts = constants.ShotConstants.for_sparc()
