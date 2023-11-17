@@ -161,12 +161,16 @@ if __name__ == "__main__":
         return jax.vmap(fitness_single_rollout, in_axes=(0, None))(keys, policy).mean()
 
     def population_fitness(key, population):
-        # The population has a leading axis for devices and a second axis
-        # for vectorized dimension
-        return jax.pmap(
-            jax.jit(jax.vmap(fitness_multiple_rollouts, in_axes=(None, 0))),
-            in_axes=(None, 0),
-        )(key, population)
+        # If there is only one device (no leading axis), then don't pmap
+        if jax.local_device_count() == 1:
+            return jax.vmap(fitness_multiple_rollouts, in_axes=(None, 0))(key, population)
+        else:
+            # The population has a leading axis for devices and a second axis
+            # for vectorized dimension
+            return jax.pmap(
+                jax.jit(jax.vmap(fitness_multiple_rollouts, in_axes=(None, 0))),
+                in_axes=(None, 0),
+            )(key, population)
 
     # Create an MLP
     prng_key, policy_key = jax.random.split(prng_key)
