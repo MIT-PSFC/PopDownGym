@@ -6,6 +6,8 @@ reward:
     beta_p: 0.3
     Bv_dot_mag: 0.3
     Wdot_mag: 40000000
+    shafranov_coeff: 3.5
+    iota95: 0.4 # Keep q95 > 2.5.
   barrier:
     slope: 100.0
     thresh: 0.95

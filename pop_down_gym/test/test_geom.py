@@ -8,9 +8,10 @@ def test_geom():
     ds, ds_geom = load_data()
     time = ds_geom.time.values.squeeze()
     aminor = ds_geom.aminor.values.squeeze()
+    kappa = ds_geom.kappa.values.squeeze()
     kappa_a = ds_geom.kappa_a.values.squeeze()
     Vp = ds_geom.Vp.values.squeeze()
-    g = Geometry(1.85, time, aminor, kappa_a, Vp)
+    g = Geometry(1.85, time, aminor, kappa, kappa_a, Vp)
     gdotfun = jax.jacfwd(g)
 
     gval = g(0.0)
@@ -18,6 +19,7 @@ def test_geom():
 
     # Sanity check values of gval.
     assert gval["aminor"] > 0.5 and gval["aminor"] < 0.6
+    assert gval["kappa"] > gval["kappa_a"] # Expect the elongation to be large than the areal elongation.
     assert gval["kappa_a"] > 1.5 and gval["kappa_a"] < 1.8
     assert gval["Vp"].size > 20
     assert gval["Vp"][0] > 0.0 and gval["Vp"][0] < 1.0 # dV/drho near core is small.
@@ -26,6 +28,7 @@ def test_geom():
 
     # Sanity check values of gdotval.
     assert gdotval["aminor"] > 0.0 and gdotval["aminor"] < 0.1 # Expect aminor to increase a bit temporarily.
+    assert gdotval["kappa"] < 0.0
     assert gdotval["kappa_a"] < 0.0
     assert gdotval["Vp"].size > 20
     assert jnp.all(gdotval["Vp"] < 0.0) # Expect Vp to decrease everywhere.

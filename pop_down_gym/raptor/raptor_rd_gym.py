@@ -190,7 +190,7 @@ class RaptorRDGym:
         vc_minus_vb = -Li_dot * Ip[1:] - Ip_dot * Li[1:]
 
         state = {
-            "li": raptor_out["li3"][0][-1],
+            "li": raptor_out["li3"][0][-1], # li = li3 under the assumption that the plasma is perfectly toroidal.
             "Ip_MA": 1e-6 * Ip[-1],
             # Take the mean over the last "rspgs" steps to avoid
             # numerical issues.

@@ -43,6 +43,12 @@ class RewardModel:
             "Wdot_mag": self.reward_barrier(
                 reward_inputs["Wdot_mag"], self.limits["Wdot_mag"]
             ),
+            "shafranov_coeff": self.reward_barrier(
+                reward_inputs["shafranov_coeff"], self.limits["shafranov_coeff"]
+            ),
+            "iota95": self.reward_barrier(
+                reward_inputs["iota95"], self.limits["iota95"]
+            ),
             "Ip": self.ip_reward(reward_inputs["Ip_MA"]),
             "hit_goal_reward": jax.lax.cond(
                 hit_goal, lambda _: self.params["hit_goal_reward"], lambda _: 0.0, None

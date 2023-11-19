@@ -10,10 +10,11 @@ KEV_TO_J = 1e3 * EV_TO_J  # [J/keV]
 class ShotConstants:
     R0: float  # Major radius [m]
     Bphi0: float  # On-axis toroidal field [T]
+    delta: float # Triangularity [-]
 
     @classmethod
     def for_sparc(cls):
-        return cls(R0=1.85, Bphi0=12.2)
+        return cls(R0=1.85, Bphi0=12.2, delta=0.54)
 
     def romero_norm(self) -> float:
         """Normalization factor to convert the Romero Model from (Li, Ip) to (li, Ip_MA)

@@ -274,34 +274,69 @@ class PopDownGymStateless:
             state["Ip_MA"],
             info0["aminor"],
         )
+
+        shafranov_coeff0 = physics.shafranov_coeff(
+            R0=self.shot_constants.R0,
+            aminor=info0["aminor"],
+            kappa=info0["kappa"],
+            beta_p=beta_p0,
+            li3=state["li"], # li = li3 under the assumption that the plasma is perfectly toroidal.
+        )
+
+        shafranov_coeff = physics.shafranov_coeff(
+            R0=self.shot_constants.R0,
+            aminor=info["aminor"],
+            kappa=info["kappa"],
+            beta_p=beta_p,
+            li3=state_new["li"], # li = li3 under the assumption that the plasma is perfectly toroidal.
+        )
+
         Bv0 = physics.calc_Bv(
             state["Ip_MA"],
-            info0["kappa_a"],
-            beta_p=beta_p0,
-            li3=state["li"],  # close enough
-            R=self.shot_constants.R0,
-            a=info0["aminor"],
+            R0=self.shot_constants.R0,
+            shafranov_coeff=shafranov_coeff0,
         )
 
         Bv = physics.calc_Bv(
             state_new["Ip_MA"],
-            info["kappa_a"],
-            beta_p=beta_p,
-            li3=state["li"],  # close enough
-            R=self.shot_constants.R0,
-            a=info["aminor"],
+            R0=self.shot_constants.R0,
+            shafranov_coeff=shafranov_coeff,
         )
+
+        q95 = physics.q95(
+            Ip_MA=state_new["Ip_MA"],
+            B0=self.shot_constants.Bphi0,
+            R0=self.shot_constants.R0,
+            aminor=info["aminor"],
+            kappa=info["kappa"],
+            # Note: delta is not really a constant, but RAPTOR
+            # isn't computing it, so use the flattop value
+            # as a constant.
+            delta=self.shot_constants.delta,
+            # We don't seem to have data on this squareness
+            # factor for SPARC. According to Sauter, a value
+            # of 1.0 corresponds to zero squareness so we'll
+            # just use that.
+            w07=1.0,
+        )
+        
+        # iota = 1.0/q by definition.
+        # Use iota95 as our reward formulation limits growth.
+        # If we want q95 > x, then we say iota < 1/x.
+        iota95 = 1.0/q95
 
         reward_inputs = {
             "li": state_new["li"],
             "Ip_MA": state_new["Ip_MA"],
-            "kappa": info["kappa_a"],
+            "kappa_a": info["kappa_a"],
             "beta_p": beta_p,
             "beta_t": beta_t,
             "beta_n": beta_n,
             "ng_frac": ng_frac,
             "Wdot_mag": jnp.abs(info["Wdot"]),
             "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.dt),
+            "shafranov_coeff": shafranov_coeff,
+            "iota95": iota95
         }
         return state_new, reward_inputs
 

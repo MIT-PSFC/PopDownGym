@@ -130,29 +130,42 @@ class TauEInput(eqx.Module):
         )
 
 
-def calc_Bv(
-    Ip_MA: float, kappa: float, beta_p: float, li3: float, R: float, a: float
+def shafranov_coeff(
+    R0: float, aminor: float, kappa: float, beta_p: float, li3: float
 ) -> float:
+    """The Shafranov coefficient, which is relevant for calculating the required vertical field
+    as well as calculations of the open-loop vertical instability growth rate.
+
+    Args:
+        R0 (float): major radius [m].
+        aminor (float): minor radius [m].
+        kappa (float): elongation [-].
+        beta_p (float): poloidal beta [-].
+        li3 (float): internal inductance [-].
+
+    Returns:
+        float: Shafranov coefficient [-].
+    """
+    shafranov_coeff = (
+        jnp.log(8 * R0 / (aminor * kappa**0.5)) + beta_p + 0.5 * li3 - 1.5
+    )
+    return shafranov_coeff
+
+
+def calc_Bv(Ip_MA: float, R0: float, shafranov_coeff: float) -> float:
     """Calculate the vertical field required for radial force balance.
 
     Args:
         Ip_MA (float): plasma current [MA].
-        kappa (float): plasma elongation [-] (TODO(allenw): which definition?).
-        beta_p (float): poloidal beta [-].
-        li3 (float): internal inductance [-].
-        R (float): major radius [m].
-        a (float): minor radius [m].
+        R0 (float): major radius [m].
+        shafranov_coeff (float): Shafranov coefficient [-].
 
     Returns:
-        float: _description_
+        float: vertical field [T].
     """
     Ip = 1e6 * Ip_MA
     MU0 = 4e-7 * jnp.pi
-    Bv = (
-        (MU0 * Ip)
-        / (4 * jnp.pi * R)
-        * (jnp.log(8 * R / (a * kappa**0.5)) + beta_p + 0.5 * li3 - 1.5)
-    )
+    Bv = (MU0 * Ip) / (4 * jnp.pi * R0) * shafranov_coeff
     return Bv
 
 
@@ -161,12 +174,12 @@ def plasma_volume(R0: float, a: float, kappa_a: float) -> float:
     Multiply the cross sectional area by 2*pi*R0 to get the volume.
 
     Args:
-        R0 (float): _description_
-        a (float): _description_
-        kappa_a (float): _description_
+        R0 (float): major radius [m].
+        a (float): minor radius [m].
+        kappa_a (float): areal elongation [-].
 
     Returns:
-        float: _description_
+        float: plasma volume [m^3].
     """
     cross_sectional_area = math.pi * a**2.0 * kappa_a
     return 2 * math.pi * R0 * cross_sectional_area
@@ -176,7 +189,21 @@ def ohmic_power(
     R0: float, a: float, Ip_MA: float, kappa: float, Te_kev: float
 ) -> float:
     """Equation obtained from exercise 6 of the 2023 EPFL Control & Operation of Tokamaks
-    School."""
+    School. In general, ohmic heating requires the electron temperature and current profiles
+    to accurately calculate, but the SPARC PRD flattop is expected to have ohmic heating
+    be only a few percent of the total heating power, so this approximate expression
+    is likely sufficient.
+
+    Args:
+        R0 (float): major radius [m].
+        a (float): minor radius [m].
+        Ip_MA (float): plasma current [MA].
+        kappa (float): plasma elongation [-].
+        Te_kev (float): volume average electron temperature [keV].
+
+    Returns:
+        float: ohmic heating power [W].
+    """
     epsilon = a / R0
     c1 = 5.6e4 / (1.0 - 1.31 * epsilon**0.5 + 0.46 * epsilon)
     # Discrepancy. The code says Ip^2, but the paper says Ip^1.
@@ -194,7 +221,7 @@ def brems_power_density(Zeff: float, ne19: float, Te_kev: float) -> float:
         Te_kev (float): Average electron temperature [keV]
 
     Returns:
-        float: power radiated per unit volume []
+        float: power radiated per unit volume.
     """
     ne20 = 0.1 * ne19
     # Note: I was hugely confused at first and thought Zeff^2, but it's Zeff^1.
@@ -210,7 +237,7 @@ def sigma_v(Ti_kev: float) -> float:
     Recommended by Exercise Session 6 of the 2023 EPFL Control & Operation of Tokamaks School.
 
     Args:
-        Ti_kev (float): _description_
+        Ti_kev (float): local ion temperature [keV].
 
     Returns:
         float: m^3/s
@@ -242,7 +269,7 @@ def alpha_power_density(ni19: float, Ti_kev: float, f_dt: float) -> float:
         f_dt (float): Deuterium-Tritium fraction.
 
     Returns:
-        float: alpha heating energy density W/m^3
+        float: alpha heating energy density [W/m^3]
     """
     Ealpha = 5.68e-13  # Energy of alpha particles at birth ~3.5 MeV [J]
     return (
@@ -322,22 +349,22 @@ def pressure_to_beta_p(mean_pressure: float, Ip_MA: float, a: float) -> float:
 
 
 def betas_to_beta_n(
-    betap: float, betat: float, Ip_MA: float, a: float, Bphi0: float
+    betap: float, betat: float, Ip_MA: float, a: float, B0: float
 ) -> float:
-    """
+    """Compute the normalized beta from the poloidal and toroidal beta.
 
     Args:
-        betap (float): _description_
-        betat (float): _description_
-        Ip_MA (float): _description_
-        a (float): _description_
-        Bphi0 (float): _description_
+        betap (float): poloidal beta [-].
+        betat (float): toroidal beta [-].
+        Ip_MA (float): plasma current [MA].
+        a (float): minor radius [m].
+        B0 (float): on axis toroidal magnetic field [T].
 
     Returns:
         float: _description_
     """
     beta = 1.0 / (1.0 / betap + 1.0 / betat)
-    betan = beta * a * Bphi0 / Ip_MA
+    betan = beta * a * B0 / Ip_MA
     return betan
 
 
@@ -369,6 +396,16 @@ def volume_integral(
 
 
 def volume_average(q: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray) -> float:
+    """Compute the volume average of a quantity on a Legendre-Gauss grid.
+
+    Args:
+        q (jnp.ndarray): quantity to integrate on a Legendre-Gauss grid.
+        Vp (jnp.ndarray): dVolume/drho on a Legendre-Gauss grid.
+        wgauss (jnp.ndarray): Legendre-Gauss quadarture weights.
+
+    Returns:
+        float: volume average of the quantity.
+    """
     return volume_integral(q, Vp, wgauss) / jnp.dot(wgauss, Vp)
 
 
@@ -376,13 +413,13 @@ def PLH_threshold(ne20: float, B0: float, a: float, R: float) -> float:
     """H-mode Pthreshold scaling from Y.Martin JP Conf.series 123 (2008)
 
     Args:
-        ne20 (float): _description_
-        B0 (float): _description_
-        a (float): _description_
-        R (float): _description_
+        ne20 (float): line average electron density [10^20/m^-3].
+        B0 (float): on axis toroidal magnetic field [T].
+        a (float): minor radius [m].
+        R (float): major radius [m].
 
     Returns:
-        float: H-mode threshold in watts.
+        float: H-mode threshold [W].
     """
     return (
         2.15e6
@@ -398,14 +435,49 @@ def greenwald_fraction(ne19_line_average: float, Ip_MA: float, a: float) -> floa
     """Compute the greenwald fraction.
 
     Args:
-        ne19_line_average (float): _description_
-        Ip_MA (float): _description_
-        a (float): _description_
+        ne19_line_average (float): line average electron density [10^19/m^-3].
+        Ip_MA (float): plasma current [MA].
+        a (float): minor radius [m].
 
     Returns:
-        float: _description_
+        float: greenwald fraction.
     """
 
     ne20_line_average = ne19_line_average / 10.0
     ng_max = Ip_MA / (jnp.pi * a**2)
     return ne20_line_average / ng_max
+
+
+def q95(
+    Ip_MA: float,
+    B0: float,
+    R0: float,
+    aminor: float,
+    kappa: float,
+    delta: float,
+    w07: float,
+) -> float:
+    """ Approximation of the safety factor at the 95% flux surface from:
+
+    Sauter, O. "Geometric formulas for system codes including the effect 
+    of negative triangularity." Fusion Engineering and Design 112 (2016).
+
+    Args:
+        Ip_MA (float): plasma current [MA].
+        B0 (float): on axis toroidal magnetic field [T].
+        R0 (float): major radius [m].
+        aminor (float): minor radius [m].
+        kappa (float): elongation [-].
+        delta (float): triangularity [-].
+        w07 (float): squareness factor introduced by Sauter [-].
+
+    Returns:
+        float: approximation of q95 [-].
+    """
+    epsilon = aminor / R0
+    c0 = (4.1 * aminor**2.0 * B0) / (R0 * Ip_MA)
+    c1 = 1 + 1.2 * (kappa - 1.0) + 0.56 * (kappa - 1.0) ** 2.0
+    c2 = 1 + 0.09 * delta + 0.16 * delta**2.0
+    c3 = (1 + 0.45 * delta * epsilon) / (1 - 0.74 * epsilon)
+    c4 = 1 + 0.55 * (w07 - 1)
+    return c0 * c1 * c2 * c3 * c4

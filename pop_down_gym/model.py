@@ -43,7 +43,8 @@ class Model:
         """
         # Compute geometry parameters.
         geometry_params = self.geom(state["gs"])
-        kappa_a, aminor, Vp, volume = (
+        kappa, kappa_a, aminor, Vp, volume = (
+            geometry_params["kappa"],
             geometry_params["kappa_a"],
             geometry_params["aminor"],
             geometry_params["Vp"],
@@ -120,8 +121,8 @@ class Model:
         Srad = physics.brems_power_density(params["Zeff"], ne19_profile, Te_kev_prof)
         Prad = physics.volume_integral(Srad, Vp, wgauss)
         Pohm = physics.ohmic_power(
-            self.shot_constants.R0, aminor, state["Ip_MA"], kappa_a, Te_kev_vol
-        )  # Use mean temp.
+            self.shot_constants.R0, aminor, state["Ip_MA"], kappa, Te_kev_vol
+        )
         Ptot = Palpha + Pohm + 1e6 * state["Paux"] - params["prad_mult"] * Prad
 
         tei = physics.TauEInput(
@@ -181,6 +182,7 @@ class Model:
                 "Ploss": -state["Wth"] / taue,
                 "taue": taue,
                 "ne19_line": ne19_line,
+                "kappa": kappa,
                 "kappa_a": kappa_a,
                 "aminor": aminor,
                 "pressure_vol_avg": pressure_vol_avg,
@@ -199,6 +201,7 @@ class Model:
             consts.R0,
             ds_geom.time.values,
             ds_geom.aminor.values.squeeze(),
+            ds_geom.kappa.values.squeeze(),
             ds_geom.kappa_a.values.squeeze(),
             ds_geom.Vp.values.squeeze(),
         )
