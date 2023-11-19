@@ -10,6 +10,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from wandb.integration.sb3 import WandbCallback
 
 import wandb
+from pop_down_gym import ROOT_DIR
 from pop_down_gym.model import Model
 from pop_down_gym.pd_gym import PopDownGym
 from pop_down_gym.visualize import VisualizeEval
@@ -48,8 +49,7 @@ def sweep(project_name, out_dir, total_timesteps):
 def get_env_builder(cfg, seed):
     # Build the function that will build the environment.
     def build_env():
-        model, _ = Model.create_default()
-        env = PopDownGym(cfg, model)
+        env = PopDownGym.create_env()
         env.reset(seed=seed)
         return Monitor(env)
 
@@ -77,7 +77,11 @@ def build_policy_kwargs(n_layers: int, units_per_layer: int):
     return policy_kwargs
 
 
-def train(config=None):
+def train(config={}):
+    USER_FILE = os.path.join(ROOT_DIR, "configs/user.yaml")
+    config["user"] = yaml.safe_load(open(USER_FILE, "r"))
+    GYM_CONFIG = os.path.join(ROOT_DIR, "configs/gym.yaml")
+    config["gym"] = yaml.safe_load(open(GYM_CONFIG, "r"))
     if config:
         project = config["user"]["project"]
         entity = config["user"]["entity"]
@@ -92,10 +96,6 @@ def train(config=None):
         run = wandb.init(sync_tensorboard=True)
 
     config = run.config
-    USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
-    config["user"] = yaml.safe_load(open(USER_FILE, "r"))
-    GYM_CONFIG = os.path.join(os.path.dirname(__file__), "configs/gym.yaml")
-    config["gym"] = yaml.safe_load(open(GYM_CONFIG, "r"))
 
     # Fill the config struct with extra data we want to record.
 
@@ -149,7 +149,7 @@ def train(config=None):
     run.finish()
 
 
-def debug():
+def example():
     config = {
         "batch_size": 2048,
         "ent_coef": 0.0024434119085899454,  # Identified via hyperparameter search.
@@ -163,10 +163,8 @@ def debug():
         "units_per_layer": 128,
         "debug_env": False,
     }
-    USER_FILE = os.path.join(os.path.dirname(__file__), "configs/user.yaml")
-    config["user"] = yaml.safe_load(open(USER_FILE, "r"))
     train(config)
 
 
 if __name__ == "__main__":
-    debug()
+    example()

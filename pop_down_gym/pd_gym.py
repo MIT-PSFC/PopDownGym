@@ -63,8 +63,8 @@ class PopDownGym(gym.Env):
         return obs, reward, terminated, truncated, info
 
     @classmethod
-    def create_env():
+    def create_env(cls):
         config_filepath = os.path.join(os.path.dirname(__file__), "configs/gym.yaml")
         config = yaml.safe_load(open(config_filepath, "r"))
         model, _ = Model.create_default()
-        return PopDownGym(config, model)
+        return cls(config, model)
