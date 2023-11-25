@@ -11,7 +11,6 @@ from wandb.integration.sb3 import WandbCallback
 
 import wandb
 from pop_down_gym import ROOT_DIR
-from pop_down_gym.model import Model
 from pop_down_gym.pd_gym import PopDownGym
 from pop_down_gym.visualize import VisualizeEval
 

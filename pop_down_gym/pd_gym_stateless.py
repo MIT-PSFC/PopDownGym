@@ -1,5 +1,7 @@
 import os
 from functools import partial
+from typing import Tuple, Dict
+from jaxtyping import PyTree
 
 import jax
 import jax.numpy as jnp
@@ -102,7 +104,7 @@ class PopDownGymStateless:
     def n_obs(self):
         # The number of observations is the number of continuous states.
         # Plus the H-Mode observation.
-        return len(self.cont_state_ranges) + 1
+        return len(jax.tree_leaves(self.observation_space))
 
     @property
     def n_actions(self):
@@ -153,11 +155,13 @@ class PopDownGymStateless:
 
     def check_out_of_bounds(self, obs):
         """Check if the given observations are in bounds or not"""
+
         def in_bound(i):
             return jnp.logical_and(
-                obs["continuous"][i] >= self.observation_space['continuous'][0][i],
-                obs["continuous"][i] <= self.observation_space['continuous'][1][i],
+                obs["continuous"][i] >= self.observation_space["continuous"][0][i],
+                obs["continuous"][i] <= self.observation_space["continuous"][1][i],
             )
+
         continuous_obs_in_bounds = jax.tree_map(
             in_bound, jnp.arange(self.observation_space["continuous"].shape[1])
         )
@@ -166,13 +170,27 @@ class PopDownGymStateless:
             obs["Hmode"] == self.observation_space["Hmode"][1],
         )
 
-        each_obs_in_bounds = jnp.logical_and(jnp.all(continuous_obs_in_bounds), hmode_in_bounds)
+        each_obs_in_bounds = jnp.logical_and(
+            jnp.all(continuous_obs_in_bounds), hmode_in_bounds
+        )
 
         out_of_bounds = jnp.logical_not(jnp.all(each_obs_in_bounds))
         return out_of_bounds
 
     @partial(jax.jit, static_argnums=(0,))
-    def _step(self, state, action, random_params):
+    def _step(
+        self, state: PyTree[float], action: PyTree[float], random_params: PyTree[float]
+    ) -> Tuple[PyTree[float], PyTree[float]]:
+        """Simulate the dynamics by one step.
+
+        Args:
+            state (PyTree[float]): state.
+            action (PyTree[float]): action.
+            random_params (PyTree[float]): random parameters.
+
+        Returns:
+            Tuple[PyTree[float], PyTree[float]]: _description_
+        """
         ts = jnp.array([0.0, self.dt])  # Time steps.
 
         # Initial State.
@@ -280,7 +298,9 @@ class PopDownGymStateless:
             aminor=info0["aminor"],
             kappa=info0["kappa"],
             beta_p=beta_p0,
-            li3=state["li"], # li = li3 under the assumption that the plasma is perfectly toroidal.
+            li3=state[
+                "li"
+            ],  # li = li3 under the assumption that the plasma is perfectly toroidal.
         )
 
         shafranov_coeff = physics.shafranov_coeff(
@@ -288,7 +308,9 @@ class PopDownGymStateless:
             aminor=info["aminor"],
             kappa=info["kappa"],
             beta_p=beta_p,
-            li3=state_new["li"], # li = li3 under the assumption that the plasma is perfectly toroidal.
+            li3=state_new[
+                "li"
+            ],  # li = li3 under the assumption that the plasma is perfectly toroidal.
         )
 
         Bv0 = physics.calc_Bv(
@@ -319,11 +341,11 @@ class PopDownGymStateless:
             # just use that.
             w07=1.0,
         )
-        
+
         # iota = 1.0/q by definition.
         # Use iota95 as our reward formulation limits growth.
         # If we want q95 > x, then we say iota < 1/x.
-        iota95 = 1.0/q95
+        iota95 = 1.0 / q95
 
         reward_inputs = {
             "li": state_new["li"],
@@ -336,13 +358,28 @@ class PopDownGymStateless:
             "Wdot_mag": jnp.abs(info["Wdot"]),
             "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.dt),
             "shafranov_coeff": shafranov_coeff,
-            "iota95": iota95
+            "iota95": iota95,
         }
         return state_new, reward_inputs
 
-    def step(self, t, params, state, action):
-        """
-        Step the environment forward in time.
+    @partial(jax.jit, static_argnums=(0,))
+    def step(
+        self,
+        t: float,
+        params: PyTree[float],
+        state: PyTree[float],
+        action: PyTree[float],
+    ) -> Tuple[PyTree[float], float, bool, bool, Dict]:
+        """Step the environment forward in time. Really just a wrapper for the business logic of the environment.
+
+        Args:
+            t (float): time (s)
+            params (PyTree[float]): external parameters.
+            state (PyTree[float]): system state.
+            action (PyTree[float]): action.
+
+        Returns:
+            Tuple[PyTree[float], float, bool, bool, Dict]: observation, reward, terminated, truncated, info.
         """
         unnormalized_action = self.dictify_and_unnormalize_action(action)
         new_state, reward_inputs = self._step(state, unnormalized_action, params)
@@ -371,16 +408,16 @@ class PopDownGymStateless:
 
         return obs, reward, terminated, truncated, info
 
-    def state_to_obs(self, state):
+    def state_to_obs(self, state: PyTree[float]) -> PyTree[float]:
         """Convert the state to an observation. This problem provides full observability, but
         the continuous observations are normalized to [-1, 1] for the sake of the agent.
 
         Args:
-            state (_type_): _description_
+            state (PyTree[float]): system state.
 
         Returns:
-            _type_: _description_
-        """
+            PyTree[float]: observations normalized to [-1, 1].
+        """        
         obs = np.zeros(len(self.CONT_STATES))
 
         def remap(key):

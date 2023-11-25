@@ -27,6 +27,11 @@ def test_env_sample_params():
     assert params is not None
     assert isinstance(params, dict)
 
+def test_env_n_obs():
+    env = PopDownGymStateless.create_env()
+    assert env.n_obs == len(env.observation_space["continuous"]) + 1
+
 def test_benchmark_simulate():
-    results = benchmark_simulate(num_trials=1, batch_sizes=[1, 16])
+    batch_sizes = [1, 16]
+    results = benchmark_simulate(batch_sizes, num_trials=1)
     assert results is not None

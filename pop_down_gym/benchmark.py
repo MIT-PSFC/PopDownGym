@@ -4,10 +4,11 @@ import jax
 import jax.numpy as jnp
 import pandas as pd
 from tqdm import tqdm
+from typing import List
 
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
-def benchmark_simulate(num_trials: int = 100, batch_sizes = [2**i for i in range(20)]):
+def benchmark_simulate(batch_sizes: List[int], num_trials: int = 100):
     """Speed benchmarking for stepping the environment."""
     env = PopDownGymStateless.create_env()
     prng_key = jax.random.PRNGKey(0)
@@ -51,7 +52,8 @@ def benchmark_simulate(num_trials: int = 100, batch_sizes = [2**i for i in range
     return results
 
 if __name__ == "__main__":
-    results = benchmark_simulate(num_trials=1)
+    batch_sizes = [2**i for i in range(20)]
+    results = benchmark_simulate(batch_sizes, num_trials=1)
     import matplotlib.pyplot as plt
     import seaborn as sns
 
