@@ -62,16 +62,13 @@ def concat_simres(simres1, simres2):
             simres1[k] = concat_matlab_arrays(simres1[k], simres2[k])
     return simres1
 
-
-def update_ustep(
-    Ustep: np.array, dIp_dt: float, Paux: float, raptor_dt: float
-) -> np.array:
-    """
+def update_ustep(Ustep: np.array, dIp_dt: float, dPaux_dt: float, raptor_dt: float, Paux_max: float) -> np.array:
+    """ 
 
     Args:
         Ustep (np.array): previous Ustep array.
         dIp_dt (float): plasma current ramp-rate.
-        Paux (float): auxiliary power.
+        dPaux_dt (float): auxiliary power.
         raptor_dt (float): RAPTOR time-step.
 
     Returns:
@@ -81,8 +78,11 @@ def update_ustep(
     time_steps = raptor_dt * np.arange(1, n_raptor_steps + 1)
     Ustep_new = Ustep.copy()
     last_Ip = Ustep[0, -1]
+    last_Paux = Ustep[1, -1]
     Ustep_new[0, :] = np.add(last_Ip, np.multiply(dIp_dt, time_steps))
-    Ustep_new[1, :] = Paux
+
+    # Prevent Paux from going to zero.
+    Ustep_new[1, :] = np.clip(np.add(last_Paux, np.multiply(dPaux_dt, time_steps)), 0.0, Paux_max)
     return Ustep_new
 
 

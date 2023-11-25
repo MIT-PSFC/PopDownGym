@@ -16,7 +16,7 @@ gymnasium = "0.28.1"
 contrax = { path = "contrax/", develop = true }
 debugpy = "1.6.7"
 black = "^23.7.0"
-wandb = "0.15.4"
+wandb = "^0.15.4"
 plotly = "^5.16.1"
 stable-baselines3 = "2.0.0a10"
 tensorboard = "^2.14.0"

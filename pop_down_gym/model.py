@@ -1,12 +1,16 @@
 import jax
 import jax.numpy as jnp
+import equinox as eqx
 
 import pop_down_gym
 import pop_down_gym.physics as physics
-from contrax.examples.plasma.li_ip.models import RomeroNNV
 from pop_down_gym import constants
 from pop_down_gym.geometry import Geometry
 from pop_down_gym.profiles import ProfileBases
+from contrax.examples.plasma.li_ip.models import RomeroNNV
+from contrax.simulate import SimFFControl
+
+from pop_down_gym.load_data import load_data
 
 class Model:
     geom: Geometry
@@ -39,7 +43,8 @@ class Model:
         """
         # Compute geometry parameters.
         geometry_params = self.geom(state["gs"])
-        kappa_a, aminor, Vp, volume = (
+        kappa, kappa_a, aminor, Vp, volume = (
+            geometry_params["kappa"],
             geometry_params["kappa_a"],
             geometry_params["aminor"],
             geometry_params["Vp"],
@@ -116,8 +121,8 @@ class Model:
         Srad = physics.brems_power_density(params["Zeff"], ne19_profile, Te_kev_prof)
         Prad = physics.volume_integral(Srad, Vp, wgauss)
         Pohm = physics.ohmic_power(
-            self.shot_constants.R0, aminor, state["Ip_MA"], kappa_a, Te_kev_vol
-        )  # Use mean temp.
+            self.shot_constants.R0, aminor, state["Ip_MA"], kappa, Te_kev_vol
+        )
         Ptot = Palpha + Pohm + 1e6 * state["Paux"] - params["prad_mult"] * Prad
 
         tei = physics.TauEInput(
@@ -152,8 +157,6 @@ class Model:
         li_control = {
             "Vind": vind,
             "te_vol_avg_kev": Te_kev_vol,
-            "kappa_a": kappa_a,
-            "kappa_a_dot": geometry_params_dot["kappa_a"],
         }
         li_derivs = self.li_model(li_state, li_control)
 
@@ -179,6 +182,7 @@ class Model:
                 "Ploss": -state["Wth"] / taue,
                 "taue": taue,
                 "ne19_line": ne19_line,
+                "kappa": kappa,
                 "kappa_a": kappa_a,
                 "aminor": aminor,
                 "pressure_vol_avg": pressure_vol_avg,
@@ -190,10 +194,6 @@ class Model:
 
     @classmethod
     def create_default(cls):
-        import equinox as eqx
-
-        from pop_down_gym.load_data import load_data
-
         ds, ds_geom = load_data()
 
         consts = constants.ShotConstants.for_sparc()
@@ -201,6 +201,7 @@ class Model:
             consts.R0,
             ds_geom.time.values,
             ds_geom.aminor.values.squeeze(),
+            ds_geom.kappa.values.squeeze(),
             ds_geom.kappa_a.values.squeeze(),
             ds_geom.Vp.values.squeeze(),
         )
@@ -213,9 +214,21 @@ class Model:
         hmode_basis, _, _ = ProfileBases.from_dataset(hmode_data)
         lmode_basis, _, _ = ProfileBases.from_dataset(lmode_data)
 
-        li_model = RomeroNNV(consts, jax.random.PRNGKey(0))
-        li_model = eqx.tree_deserialise_leaves(
+
+        romero_nnv = RomeroNNV(
+                        consts,
+                        eqx.nn.MLP(
+                            in_size=3 + 2,
+                            out_size=1,
+                            width_size=32,
+                            depth=2,
+                            key=jax.random.PRNGKey(0),
+                            activation=jax.nn.softplus,
+                        ),
+                    )
+        li_ip_sim = SimFFControl(romero_nnv, dt0=0.01)
+        li_ip_sim = eqx.tree_deserialise_leaves(
             f"{pop_down_gym.ROOT_DIR}/../contrax/contrax/examples/plasma/models/romero_nnv.eqx",
-            li_model,
+            li_ip_sim,
         )
-        return cls(g, li_model, hmode_basis, lmode_basis, consts), ds
+        return cls(g, li_ip_sim.model, hmode_basis, lmode_basis, consts), ds

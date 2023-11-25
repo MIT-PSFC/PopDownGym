@@ -1,11 +1,13 @@
 reward:
   limits:
     li: 3.0
-    ng_frac: 0.5
+    ng_frac: 0.8
     beta_n: 0.015
     beta_p: 0.3
     Bv_dot_mag: 0.3
-    Wdot_mag: 20000000
+    Wdot_mag: 40000000
+    shafranov_coeff: 3.5
+    iota95: 0.4 # Keep q95 > 2.5.
   barrier:
     slope: 100.0
     thresh: 0.95
@@ -23,3 +25,71 @@ nominal_initial_state:
   Paux: 14.0
   gs: 0.0
   Hmode: True
+dt: 0.05
+time_limit: 7.5
+cont_state_ranges:
+  li: # Normalized internal inductance [-]
+    - 0.5
+    - 6.0
+  Ip_MA: # Plasma current [MA]
+    - 1.0
+    - 9.0
+  vc_minus_vb: # vc-vb as defined by Romero [V]
+    - -5.0
+    - 5.0
+  Wth: # Stored thermal energy [J]
+    - 100000
+    - 30000000
+  nfuel19_vol: # Volume averaged fuel density [10^19 m^-3]
+    - 1.0
+    - 30.0
+  Paux: # Auxiliary heating power [MW]
+    - 0.0
+    - 25.0
+  gs: # Geometry evolution parameter [-]
+    - 0.0
+    - 1.0
+random_initial_state_percent_var:
+  # When generating a random initial state, we allow each state variable
+  # to vary by a certain percentage of its nominal value. If the variable
+  # is not included in this dict, then it is not varied.
+  li: 10.0
+  Ip_MA: 2.0
+  vc_minus_vb: 10.0
+  Wth: 2.0
+  nfuel19_vol: 2.0
+action_ranges:
+  dIp_dt:
+    - -3.0
+    - -0.5
+  dPaux_dt:
+    - -5.0
+    - 5.0
+  fueling19:
+    - 0.0
+    - 10.0
+  dgs_dt:
+    - 0.0
+    - 1.0
+random_param_ranges:
+  ion_dilution:
+    - 0.8
+    - 0.9
+  hl_factor:
+    - 0.55
+    - 0.75
+  Hfactor:
+    - 0.8
+    - 1.0
+  Zeff:
+    - 1.2
+    - 1.8
+  Te_over_Ti:
+    - 1.0
+    - 1.2
+  tau_n_factor:
+    - 7.0
+    - 9.0
+  prad_mult:
+    - 2.0
+    - 3.0

@@ -1,5 +1,7 @@
 import os
 from functools import partial
+from typing import Tuple, Dict
+from jaxtyping import PyTree
 
 import jax
 import jax.numpy as jnp
@@ -8,66 +10,55 @@ import yaml
 
 import pop_down_gym.physics as physics
 from contrax.simulate import SimFFControl
+import pop_down_gym
 from pop_down_gym.model import Model
 from pop_down_gym.reward import RewardModel
 from pop_down_gym.utils import remap_range
 
 
 class PopDownGymStateless:
-    CONT_STATE_RANGES = {
-        "li": (0.5, 6.0),  # Normalized internal inductance [-]
-        "Ip_MA": (1.0, 9.0),  # Plasma current [MA]
-        "vc_minus_vb": (-5.0, 5.0),  # vc-vb as defined by Romero [V]
-        "Wth": (1e5, 3e7),  # Stored thermal energy [J]
-        "nfuel19_vol": (1.0, 30.0),  # Volume averaged fuel density [10^19 m^-3]
-        "Paux": (0.0, 25.0),  # Auxiliary heating power [MW]
-        "gs": (0.0, 1.0),  # Geometry evolution parameter [0]
-    }
-
-    """
-    When generating a random initial state, we allow each state variable
-    to vary by a certain percentage of its nominal value. If the variable
-    is not included in this dict, then it is not varied.
-    """
-    RANDOM_INITIAL_STATE_PERCENT_VAR = {
-        "li": 10.0,
-        "Ip_MA": 2.0,
-        "vc_minus_vb": 10.0,
-        "Wth": 2.0,
-        "nfuel19_vol": 2.0,
-    }
-    ACTION_RANGES = {
-        "dIp_dt": (-3.0, -0.5),  # Rate of change of plasma current [MA/s]
-        "dPaux_dt": (-5.0, 5.0),  # Rate of change of auxiliary power [MW/s]
-        "fueling19": (
-            0.0,
-            10.0,
-        ),  # Really limit fueling, prob don't want much [10^19/s]
-        "dgs_dt": (0.0, 1.0),  # Rate of evolution through geometry space [1/s]
-    }
-
-    DT = 0.05
-
-    RANDOM_PARAM_RANGES = {
-        "ion_dilution": (0.8, 0.9),
-        "HL_FUDGE": (0.55, 0.75),
-        "Hfactor": (0.8, 1.0),
-        "Zeff": (1.2, 1.8),
-        "Te_over_Ti": (1.0, 1.2),
-        "tau_n_factor": (7.0, 9.0),
-        "prad_mult": (2.0, 3.0),
-    }
-    TIME_LIMIT = 7.5
+    CONT_STATES = ["li", "Ip_MA", "vc_minus_vb", "Wth", "nfuel19_vol", "Paux", "gs"]
 
     def __init__(self, cfg: dict, model: Model):
-        self.simulator = SimFFControl(model, dt0=1e-2)
+        """
+        Unpack the configuration file.
+        """
+        self.cont_state_ranges = {
+            key: tuple(val) for key, val in cfg["cont_state_ranges"].items()
+        }
+        self.random_initial_state_percent_var = cfg["random_initial_state_percent_var"]
+        self.action_ranges = {
+            key: tuple(val) for key, val in cfg["action_ranges"].items()
+        }
+        self.random_param_ranges = {
+            key: tuple(val) for key, val in cfg["random_param_ranges"].items()
+        }
+        self.dt = cfg["dt"]
+        self.time_limit = cfg["time_limit"]
+
+        # Initialize the simulator.
+        self.simulator = SimFFControl(
+            model, dt0=cfg["dt"] / 5.0
+        )  # Do 5 steps per gym dt.
         self.reward_model = RewardModel(cfg["reward"])
         self.shot_constants = model.shot_constants
         self.nominal_initial_state = cfg["nominal_initial_state"]
+
         # Declare the normalized action space.
         self.action_space = jnp.vstack(
-            (-1.0 * np.ones(len(self.ACTION_RANGES)), np.ones(len(self.ACTION_RANGES)))
+            (-1.0 * np.ones(len(self.action_ranges)), np.ones(len(self.action_ranges)))
         )
+
+        # Declare the normalized observation space.
+        self.observation_space = {
+            "continuous": jnp.vstack(
+                (
+                    -1.0 * np.ones(len(self.cont_state_ranges)),
+                    np.ones(len(self.cont_state_ranges)),
+                )
+            ),
+            "Hmode": (0, 1),
+        }
 
     def sample_state(self, prng_key):
         """
@@ -82,7 +73,7 @@ class PopDownGymStateless:
         initial_state["Hmode"] = jnp.array(1)
         fractional_variation = jax.tree_util.tree_map(
             lambda x: 0.01 * x * jax.random.uniform(prng_key, minval=-1.0, maxval=1.0),
-            self.RANDOM_INITIAL_STATE_PERCENT_VAR,
+            self.random_initial_state_percent_var,
         )
         for key, variation in fractional_variation.items():
             initial_state[key] = initial_state[key] * (1 + variation)
@@ -98,7 +89,7 @@ class PopDownGymStateless:
         """
         # Choose a random parameter uniformly in the range
         params = {}
-        for param_key, (lb, ub) in self.RANDOM_PARAM_RANGES.items():
+        for param_key, (lb, ub) in self.random_param_ranges.items():
             prng_key, key = jax.random.split(prng_key)
             params[param_key] = jax.random.uniform(key, minval=lb, maxval=ub)
 
@@ -106,16 +97,18 @@ class PopDownGymStateless:
 
     def sample_action(self, prng_key):
         return jax.random.uniform(
-            prng_key, minval=-1.0, maxval=1.0, shape=(len(self.ACTION_RANGES),)
+            prng_key, minval=-1.0, maxval=1.0, shape=(len(self.action_ranges),)
         )
 
     @property
     def n_obs(self):
-        return len(self.CONT_STATE_RANGES)
+        # The number of observations is the number of continuous states.
+        # Plus the H-Mode observation.
+        return len(jax.tree_leaves(self.observation_space))
 
     @property
     def n_actions(self):
-        return len(self.ACTION_RANGES)
+        return len(self.action_ranges)
 
     def reset(self, prng_key):
         """
@@ -137,7 +130,7 @@ class PopDownGymStateless:
 
         return random_params, state, self.state_to_obs(state), info
 
-    def unnormalize_action(self, action) -> dict:
+    def dictify_and_unnormalize_action(self, action) -> dict:
         """Given an action sampled from the normalized action space, unnormalize it.
 
         Args:
@@ -146,37 +139,59 @@ class PopDownGymStateless:
         Returns:
             dict: _description_
         """
+        action = {
+            action_name: action[i]
+            for i, action_name in enumerate(self.action_ranges.keys())
+        }
         for i, (action_name, action_val) in enumerate(action.items()):
             action_space_range = (
                 self.action_space[0][i],
                 self.action_space[1][i],
             )
             action[action_name] = remap_range(
-                action_val, action_space_range, self.ACTION_RANGES[action_name]
+                action_val, action_space_range, self.action_ranges[action_name]
             )
         return action
 
     def check_out_of_bounds(self, obs):
         """Check if the given observations are in bounds or not"""
-        # TODO currently, the observation range seems to be [-1, 1], not
-        # the range given in CONT_STATE_RANGES
-        each_obs_in_bounds = jax.tree_map(
-            lambda x: jnp.logical_and(x >= -1.0, x <= 1.0), obs
+
+        def in_bound(i):
+            return jnp.logical_and(
+                obs["continuous"][i] >= self.observation_space["continuous"][0][i],
+                obs["continuous"][i] <= self.observation_space["continuous"][1][i],
+            )
+
+        continuous_obs_in_bounds = jax.tree_map(
+            in_bound, jnp.arange(self.observation_space["continuous"].shape[1])
         )
+        hmode_in_bounds = jnp.logical_or(
+            obs["Hmode"] == self.observation_space["Hmode"][0],
+            obs["Hmode"] == self.observation_space["Hmode"][1],
+        )
+
+        each_obs_in_bounds = jnp.logical_and(
+            jnp.all(continuous_obs_in_bounds), hmode_in_bounds
+        )
+
         out_of_bounds = jnp.logical_not(jnp.all(each_obs_in_bounds))
         return out_of_bounds
 
     @partial(jax.jit, static_argnums=(0,))
-    def _step(self, params, state, action):
-        """
-        Step the environment forward in time.
+    def _step(
+        self, state: PyTree[float], action: PyTree[float], random_params: PyTree[float]
+    ) -> Tuple[PyTree[float], PyTree[float]]:
+        """Simulate the dynamics by one step.
 
         Args:
-            params (dict): The current random parameters.
-            state (dict): The current state.
-            action (dict): The current action.
+            state (PyTree[float]): state.
+            action (PyTree[float]): action.
+            random_params (PyTree[float]): random parameters.
+
+        Returns:
+            Tuple[PyTree[float], PyTree[float]]: _description_
         """
-        ts = jnp.array([0.0, self.DT])  # Time steps.
+        ts = jnp.array([0.0, self.dt])  # Time steps.
 
         # Initial State.
         initial_state = {
@@ -191,20 +206,19 @@ class PopDownGymStateless:
         # [Hmode, Hfactor, Zeff, ion_dilution, Te_over_Ti, f_dt, tau_n_factor, prad_mult]
         params = {
             "Hmode": state["Hmode"],
-            "HL_FUDGE": params["HL_FUDGE"],
-            "Hfactor": params["Hfactor"],
-            "Zeff": params["Zeff"],
-            "ion_dilution": params["ion_dilution"],
-            "Te_over_Ti": params["Te_over_Ti"],
+            "Hfactor": random_params["Hfactor"],
+            "Zeff": random_params["Zeff"],
+            "ion_dilution": random_params["ion_dilution"],
+            "Te_over_Ti": random_params["Te_over_Ti"],
             "f_dt": 0.5,
-            "tau_n_factor": params["tau_n_factor"],
-            "prad_mult": params["prad_mult"],
+            "tau_n_factor": random_params["tau_n_factor"],
+            "prad_mult": random_params["prad_mult"],
         }
 
         # SimFFControl needs controls at all time steps in "ts".
         # Let's just assume a zero-order-hold, so constant action over the simulation step.
         controls = jax.tree_map(lambda x: jnp.repeat(x, 2), action)
-        res = self.simulator.simulate(ts, initial_state, controls, params=params)
+        res = self.simulator.simulate(ts, initial_state, controls, params)
 
         # Evaluate the model at the first and last time steps in debug mode to get info.
         ys0 = jax.tree_map(lambda x: x[0], res.ys)
@@ -224,7 +238,10 @@ class PopDownGymStateless:
             info["aminor"],
             self.shot_constants.R0,
         )
-        PHL = params["HL_FUDGE"] * PLH
+
+        # While there are well-established L->H transition thresholds, the H->L transition is less well understood.
+        # It is often assumed that the H->L transition occurs at some fraction of the L->H threshold.
+        PHL = random_params["hl_factor"] * PLH
         Hmode_new = jnp.where(
             jnp.logical_and(state["Hmode"] == 1, Ploss < PHL), 0, state["Hmode"]
         )
@@ -237,13 +254,13 @@ class PopDownGymStateless:
             "nfuel19_vol": ys_last["nfuel19_vol"],
             "Paux": jnp.clip(
                 ys_last["Paux"],
-                self.CONT_STATE_RANGES["Paux"][0],
-                self.CONT_STATE_RANGES["Paux"][1],
+                self.cont_state_ranges["Paux"][0],
+                self.cont_state_ranges["Paux"][1],
             ),
             "gs": jnp.clip(
                 ys_last["gs"],
-                self.CONT_STATE_RANGES["gs"][0],
-                self.CONT_STATE_RANGES["gs"][1],
+                self.cont_state_ranges["gs"][0],
+                self.cont_state_ranges["gs"][1],
             ),
             "Hmode": Hmode_new,
         }
@@ -275,54 +292,103 @@ class PopDownGymStateless:
             state["Ip_MA"],
             info0["aminor"],
         )
+
+        shafranov_coeff0 = physics.shafranov_coeff(
+            R0=self.shot_constants.R0,
+            aminor=info0["aminor"],
+            kappa=info0["kappa"],
+            beta_p=beta_p0,
+            li3=state[
+                "li"
+            ],  # li = li3 under the assumption that the plasma is perfectly toroidal.
+        )
+
+        shafranov_coeff = physics.shafranov_coeff(
+            R0=self.shot_constants.R0,
+            aminor=info["aminor"],
+            kappa=info["kappa"],
+            beta_p=beta_p,
+            li3=state_new[
+                "li"
+            ],  # li = li3 under the assumption that the plasma is perfectly toroidal.
+        )
+
         Bv0 = physics.calc_Bv(
             state["Ip_MA"],
-            info0["kappa_a"],
-            beta_p=beta_p0,
-            li3=state["li"],  # close enough
-            R=self.shot_constants.R0,
-            a=info0["aminor"],
+            R0=self.shot_constants.R0,
+            shafranov_coeff=shafranov_coeff0,
         )
 
         Bv = physics.calc_Bv(
             state_new["Ip_MA"],
-            info["kappa_a"],
-            beta_p=beta_p,
-            li3=state["li"],  # close enough
-            R=self.shot_constants.R0,
-            a=info["aminor"],
+            R0=self.shot_constants.R0,
+            shafranov_coeff=shafranov_coeff,
         )
+
+        q95 = physics.q95(
+            Ip_MA=state_new["Ip_MA"],
+            B0=self.shot_constants.Bphi0,
+            R0=self.shot_constants.R0,
+            aminor=info["aminor"],
+            kappa=info["kappa"],
+            # Note: delta is not really a constant, but RAPTOR
+            # isn't computing it, so use the flattop value
+            # as a constant.
+            delta=self.shot_constants.delta,
+            # We don't seem to have data on this squareness
+            # factor for SPARC. According to Sauter, a value
+            # of 1.0 corresponds to zero squareness so we'll
+            # just use that.
+            w07=1.0,
+        )
+
+        # iota = 1.0/q by definition.
+        # Use iota95 as our reward formulation limits growth.
+        # If we want q95 > x, then we say iota < 1/x.
+        iota95 = 1.0 / q95
 
         reward_inputs = {
             "li": state_new["li"],
             "Ip_MA": state_new["Ip_MA"],
-            "kappa": info["kappa_a"],
+            "kappa_a": info["kappa_a"],
             "beta_p": beta_p,
             "beta_t": beta_t,
             "beta_n": beta_n,
             "ng_frac": ng_frac,
             "Wdot_mag": jnp.abs(info["Wdot"]),
-            "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.DT),
+            "Bv_dot_mag": jnp.abs((Bv - Bv0) / self.dt),
+            "shafranov_coeff": shafranov_coeff,
+            "iota95": iota95,
         }
         return state_new, reward_inputs
 
-    def step(self, t, params, state, action):
+    @partial(jax.jit, static_argnums=(0,))
+    def step(
+        self,
+        t: float,
+        params: PyTree[float],
+        state: PyTree[float],
+        action: PyTree[float],
+    ) -> Tuple[PyTree[float], float, bool, bool, Dict]:
+        """Step the environment forward in time. Really just a wrapper for the business logic of the environment.
+
+        Args:
+            t (float): time (s)
+            params (PyTree[float]): external parameters.
+            state (PyTree[float]): system state.
+            action (PyTree[float]): action.
+
+        Returns:
+            Tuple[PyTree[float], float, bool, bool, Dict]: observation, reward, terminated, truncated, info.
         """
-        Step the environment forward in time.
-        """
-        # Map the array of actions to a dict.
-        action = {
-            action_name: action[i]
-            for i, action_name in enumerate(self.ACTION_RANGES.keys())
-        }
-        unnormalized_action = self.unnormalize_action(action)
-        new_state, reward_inputs = self._step(params, state, unnormalized_action)
+        unnormalized_action = self.dictify_and_unnormalize_action(action)
+        new_state, reward_inputs = self._step(state, unnormalized_action, params)
         reward, reward_terms = self.reward_model.reward(
             reward_inputs, unnormalized_action
         )
-        next_time = t + self.DT
+        next_time = t + self.dt
 
-        truncated = next_time >= self.TIME_LIMIT
+        truncated = next_time >= self.time_limit
         hit_goal = reward_terms["hit_goal_reward"] > 0.0
         obs = self.state_to_obs(new_state)
         out_of_bounds = self.check_out_of_bounds(obs)
@@ -342,16 +408,29 @@ class PopDownGymStateless:
 
         return obs, reward, terminated, truncated, info
 
-    def state_to_obs(self, state):
-        continuous = {k: v for k, v in state.items() if k != "Hmode"}
-        obs = jnp.zeros(len(continuous))
-        # In this problem, we define the observations as the continuous states normalized to [-1, 1].
-        # TODO(allenw): fair question to be asked
-        for i, (key, value) in enumerate(continuous.items()):
-            obs = obs.at[i].set(
-                remap_range(value, self.CONT_STATE_RANGES[key], (-1.0, 1.0))
-            )
-        return obs
+    def state_to_obs(self, state: PyTree[float]) -> PyTree[float]:
+        """Convert the state to an observation. This problem provides full observability, but
+        the continuous observations are normalized to [-1, 1] for the sake of the agent.
+
+        Args:
+            state (PyTree[float]): system state.
+
+        Returns:
+            PyTree[float]: observations normalized to [-1, 1].
+        """        
+        obs = np.zeros(len(self.CONT_STATES))
+
+        def remap(key):
+            value = state[key]
+            return remap_range(value, self.cont_state_ranges[key], (-1.0, 1.0))
+
+        obs = jnp.array([remap(key) for key in self.CONT_STATES])
+
+        out = {
+            "continuous": obs,
+            "Hmode": state["Hmode"],
+        }
+        return out
 
     def simulate_trajectory_open_loop(self, prng_key, open_loop_actions, steps=100):
         """
@@ -391,14 +470,9 @@ class PopDownGymStateless:
 
         return rewards.sum(), states
 
-
-if __name__ == "__main__":
-    config_filepath = os.path.join(os.path.dirname(__file__), "configs/gym.yaml")
-    config = yaml.safe_load(open(config_filepath, "r"))
-    model, _ = Model.create_default()
-    env = PopDownGymStateless(config, model)
-    key = jax.random.PRNGKey(0)
-    params, state, obs, info = env.reset(key)
-    obs, reward, terminated, truncated, info = env.step(
-        info["time"], params, state, env.sample_action(key)
-    )
+    @classmethod
+    def create_env(cls):
+        config_filepath = os.path.join(pop_down_gym.ROOT_DIR, "configs/gym.yaml")
+        config = yaml.safe_load(open(config_filepath, "r"))
+        model, _ = Model.create_default()
+        return cls(config, model)

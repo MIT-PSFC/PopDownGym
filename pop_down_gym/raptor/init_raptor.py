@@ -2,8 +2,8 @@ import os
 
 import matlab.engine
 from scipy.interpolate import interp1d
-
-from .utils import numpy_to_matlab, to_numpy
+from .utils import to_numpy, numpy_to_matlab
+import numpy as np
 
 
 def init_matlab(raptor_repo_root: str) -> matlab.engine.MatlabEngine:
@@ -38,13 +38,14 @@ def init_sparc_rd(raptor_repo_root: str, eng: matlab.engine.MatlabEngine, dt: fl
     v = to_numpy(v)
     U0 = to_numpy(U0)
 
-    # Get g as a function of Ip.
+    # Get g as a function between [0, 1].
     Ip = U0[0, :]
-    g_interp = interp1d(Ip, g)
+    gs = np.linspace(0, 1, Ip.size)
+    g_interp = interp1d(gs, g)
 
-    # Get Vp as a function of Ip.
+    # Get Vp as a function between [0, 1].
     Vp = eng.eval_Vp([], numpy_to_matlab(g), [], model, True)
-    Vp_interp = interp1d(Ip, to_numpy(Vp))
+    Vp_interp = interp1d(gs, to_numpy(Vp))
 
     # Build a ne basis that will be used for updating the ne profile.
     # Note: index with [0] instead of 0 to preserve dimension information.
@@ -62,6 +63,12 @@ def init_sparc_rd(raptor_repo_root: str, eng: matlab.engine.MatlabEngine, dt: fl
         to_numpy(ni_profile0) / ni_line0
     )  # Multiply this basis by line average ni to get ni profile.
 
+    # Volume integrals of Ne and Ni.
+    wgauss = to_numpy(model["rgrid"]["wgauss"]).squeeze()
+    volume = np.dot(wgauss, Vp_interp(0.0))
+    ne_vol_avg = np.dot(np.multiply(wgauss, Vp_interp(0.0)), ne_profile0) / volume
+    ni_vol_avg = np.dot(np.multiply(wgauss, Vp_interp(0.0)), ni_profile0) / volume
+
     return (
         x0,
         g_interp,
@@ -75,4 +82,8 @@ def init_sparc_rd(raptor_repo_root: str, eng: matlab.engine.MatlabEngine, dt: fl
         config,
         ne_basis,
         ni_basis,
+        ne_line0,
+        ni_line0,
+        ne_vol_avg,
+        ni_vol_avg,
     )
