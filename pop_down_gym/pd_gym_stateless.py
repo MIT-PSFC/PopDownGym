@@ -419,7 +419,7 @@ class PopDownGymStateless:
 
         Returns:
             PyTree[float]: observations normalized to [-1, 1].
-        """        
+        """
         obs = np.zeros(len(self.CONT_STATES))
 
         def remap(key):
