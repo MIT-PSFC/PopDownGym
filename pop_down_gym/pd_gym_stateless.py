@@ -104,7 +104,9 @@ class PopDownGymStateless:
     def n_obs(self):
         # The number of observations is the number of continuous states.
         # Plus the H-Mode observation.
-        return len(jax.tree_leaves(self.observation_space))
+        cont_states = len(self.cont_state_ranges)
+        non_cont_obs = {k: v for k, v in self.observation_space.items() if k != "continuous"}
+        return cont_states + len(non_cont_obs)
 
     @property
     def n_actions(self):
