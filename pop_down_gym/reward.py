@@ -95,3 +95,22 @@ class RewardModel:
                 clipped_normalized_value, self.barrier["slope"], self.barrier["thresh"]
             )
         )
+
+if __name__ == "__main__":
+    import matplotlib
+    import matplotlib.pyplot as plt
+    from pop_down_gym.pd_gym_stateless import PopDownGymStateless
+    matplotlib.rcParams.update({'font.size': 16})
+
+    env = PopDownGymStateless.create_env()
+    reward_model = env.reward_model
+    xs = jnp.linspace(0.0, 2.0, 100)
+    rs = reward_model.reward_barrier(xs, 1.0)
+    plt.plot(xs, rs, label="Reward", linewidth=3)
+    plt.xlabel("g/l")
+    plt.ylabel("Reward")
+    # Vertical line.
+    plt.axvline(x=1.0, color="r", linestyle="--", label="Constraint Threshold")
+    plt.title("Visualizing the Reward Barrier Function")
+    plt.legend()
+    plt.show()

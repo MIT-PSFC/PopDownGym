@@ -6,6 +6,7 @@ import scipy.io as sio
 import xarray as xr
 from tqdm import tqdm
 import pandas as pd
+from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 
 def loadmat(filename):
@@ -94,23 +95,24 @@ def plot_df(df, lines=None, title=None):
 
 
 if __name__ == "__main__":
-    data = loadmat("best_result.mat")
+    env = PopDownGymStateless.create_env()
+    data = loadmat("test.mat")
     df = convert_to_df(data["out"])
     df["Wdot_mag"] = np.abs(df["dWtdt"])
 
     # Differentiate Bv.
-    df["Bvdot_mag"] = np.abs(np.gradient(df["Bv"], df.index))
+    df["Bv_dot_mag"] = np.abs(np.gradient(df["Bv"], df.index))
     df["Ip_dot"] = np.gradient(df["Ip"], df.index)
     lines = {
-        "Bvdot_mag": 0.3,
-        "Wdot_mag": 4e7,
-        "betaN": 1.5,
-        "betapol": 0.3,
-        "li3": 3.0,
-        "fne_gr": 0.5,
+        "Bv_dot_mag": env.reward_model.limits["Bv_dot_mag"],
+        "Wdot_mag": env.reward_model.limits["Wdot_mag"],
+        "betaN": env.reward_model.limits["beta_n"],
+        "betapol": env.reward_model.limits["beta_p"],
+        "li3": env.reward_model.limits["li"],
+        "fne_gr": env.reward_model.limits["ng_frac"],
     }
     plot_df(
-        df[["Ip", "Bvdot_mag", "Wdot_mag", "betaN", "betapol", "li3", "fne_gr"]],
+        df[["Ip", "Bv_dot_mag", "Wdot_mag", "betaN", "betapol", "li3", "fne_gr"]],
         lines,
         title="RL Controller + Raptor",
     )

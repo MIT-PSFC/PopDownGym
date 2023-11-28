@@ -23,7 +23,8 @@ class MLP(eqx.Module):
             self.layers.append(eqx.nn.Linear(hidden_dims, hidden_dims, key=key))
         self.layers.append(eqx.nn.Linear(hidden_dims, output_dims, key=keys[-1]))
 
-    def __call__(self, x):
+    def __call__(self, obs):
+        x = jax.numpy.hstack((obs["continuous"], obs["Hmode"]))
         for layer in self.layers[:-1]:
             x = jax.nn.relu(layer(x))
         return jax.nn.tanh(self.layers[-1](x))
@@ -49,8 +50,6 @@ def rollout_closed_loop(prng_key, env, policy, steps=100):
         # Unpack the carry
         state, obs, t = carry
 
-        # Vectorize observation
-        obs = jax.numpy.hstack((obs["continuous"], obs["Hmode"]))
 
         # Evaluate the policy
         action = policy(obs)
