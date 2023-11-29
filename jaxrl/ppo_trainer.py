@@ -157,7 +157,8 @@ def plot(idx: int, rew_model: RewardModel, data: PPOEval, plot_dir: pathlib.Path
 
     bT_rew_inputs = data.bT_info["reward_inputs"]
 
-    fig, axes = plt.subplots(nconstr, layout="constrained", sharex=True, dpi=250)
+    figsize = np.array([6, 1.2 * nconstr])
+    fig, axes = plt.subplots(nconstr, layout="constrained", figsize=figsize, sharex=True, dpi=250)
     for ii, ax in enumerate(axes):
         label = constr_labels[ii]
 

@@ -1,5 +1,6 @@
 import ipdb
 import jax.random as jr
+from loguru import logger
 
 from jaxrl.ppo import CollectorCfg, PPOCfg, PPOTrainCfg
 from jaxrl.ppo_trainer import train_ppo
@@ -20,14 +21,16 @@ def main():
         "beta_p": [0.25, 0.4],
         "Bv_dot_mag": [0.2, 0.4],
         "Wdot_mag": [20_000_000, 70_000_000],
-        "shafranov_coeff": [0.3, 0.4],
-        "iota95": [0.3, 0.5]
+        "shafranov_coeff": [3.4, 3.6],
+        "iota95": [0.35, 0.45],
     }
     rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
     shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
 
+    logger.info("Constructing Env...")
     env_train = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers)
     env_test = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
+    logger.info("Constructing Env... Done!")
     train_cfg = PPOTrainCfg(
         gae_lambda=0.95,
         batch_size=16_384,

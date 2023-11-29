@@ -4,6 +4,7 @@ from typing import Optional
 import ipdb
 import jax.random as jr
 import typer
+from loguru import logger
 
 from jaxrl.ppo import CollectorCfg, PPOCfg, PPOTrainCfg
 from jaxrl.ppo_trainer import train_ppo
@@ -16,7 +17,9 @@ def main(warmstart: Optional[pathlib.Path] = None):
     set_logger_format()
 
     key = jr.PRNGKey(54123)
+    logger.info("Constructing Env...")
     env = PDEnv()
+    logger.info("Constructing Env... Done!")
     # env.pd.reward_model.limits["li"] = 2.0
 
     train_cfg = PPOTrainCfg(

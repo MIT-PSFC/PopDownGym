@@ -214,7 +214,6 @@ class Model:
         hmode_basis, _, _ = ProfileBases.from_dataset(hmode_data)
         lmode_basis, _, _ = ProfileBases.from_dataset(lmode_data)
 
-
         romero_nnv = RomeroNNV(
                         consts,
                         eqx.nn.MLP(

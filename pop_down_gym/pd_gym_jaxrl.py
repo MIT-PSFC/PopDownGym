@@ -94,6 +94,7 @@ class PDEnvAdj(Env):
             for k, new_limit in limits.items():
                 old_limit = self.pd.reward_model.limits[k]
                 logger.info("{:12} {} -> {}".format(k, old_limit, new_limit))
+                assert k in self.pd.reward_model.limits
                 self.pd.reward_model.limits[k] = new_limit
 
         self.shift_ranges = shift_ranges
