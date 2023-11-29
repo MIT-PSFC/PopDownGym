@@ -112,6 +112,7 @@ class PDEnvAdj(Env):
         params = self.pd.reward_model.params.copy()
         params["limits"] = params["limits"].copy()
         for k, v in state.shifts.items():
+            assert k in params["limits"]
             params["limits"][k] += v
         reward_model = RewardModel(params)
         reward, reward_terms = reward_model.reward(info["reward_inputs"], unnormalized_action)

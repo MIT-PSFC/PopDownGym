@@ -109,14 +109,7 @@ def train_ppo(
             std_mean = b_std_valid.mean()
 
             # Compute probability of constraint violations.
-            constr_ub = {
-                "li": 3.0,
-                "ng_frac": 0.5,
-                "beta_n": 0.015,
-                "beta_p": 0.3,
-                "Bv_dot_mag": 0.3,
-                "Wdot_mag": 20000000,
-            }
+            constr_ub = env_train.pd.reward_model.limits
             p_vio = {}
             for k, ub in constr_ub.items():
                 bT_r = eval_data.bT_info["reward_inputs"][k]
@@ -147,18 +140,18 @@ def plot(idx: int, rew_model: RewardModel, data: PPOEval, plot_dir: pathlib.Path
     plot_dir.mkdir(exist_ok=True, parents=True)
     plot_path = plot_dir / f"plot_{idx:06d}.jpg"
 
-    constr_labels = ["Ip_MA", "Bv_dot_mag", "Wdot_mag", "beta_n", "beta_p", "li", "ng_frac"]
+    constr_labels = [
+        "Ip_MA",
+        "Bv_dot_mag",
+        "Wdot_mag",
+        "beta_n",
+        "beta_p",
+        "li",
+        "ng_frac",
+        "shafranov_coeff",
+        "iota95",
+    ]
     nconstr = len(constr_labels)
-
-    # constr_ub = {
-    #     "li": 3.0,
-    #     "ng_frac": 0.5,
-    #     "beta_n": 0.015,
-    #     "beta_p": 0.3,
-    #     "Bv_dot_mag": 0.3,
-    #     "Wdot_mag": 20000000,
-    # }
-    # Ip_MA_tgt = 2.0
     constr_ub = rew_model.limits
     Ip_MA_tgt = rew_model.ip_ma["target"]
 
