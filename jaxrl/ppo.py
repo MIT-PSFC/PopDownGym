@@ -470,6 +470,10 @@ class PPOAlg(struct.PyTreeNode):
         is_ratio = jnp.exp(bT_logp_now - bT_logp_behavior)
         return 0.5 * jnp.mean(jnp.abs(is_ratio - 1.0))
 
+    def act(self, obs: Obs) -> Control:
+        """Convenience function for deployment."""
+        return self.policy.apply(obs).mode()
+
     @jax.jit
     def eval(self, collector: Collector) -> PPOEval:
         def eval_pol(obs):

@@ -2,13 +2,13 @@ from typing import NamedTuple, TypedDict
 
 import jax.numpy as jnp
 import jax.random as jr
+from loguru import logger
 
 from jaxrl.env import Env, StepOutput
 from jaxrl.env_types import Obs
 from jaxrl.utils.jax_types import FloatScalar, PRNGKey
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.reward import RewardModel
-from loguru import logger
 
 
 class PDParamsDict(TypedDict):
@@ -40,7 +40,9 @@ class PDEnv(Env):
 
     def step_env(self, key: PRNGKey, state: PDState, action) -> StepOutput:
         clipped_action = action.clip(-1, 1)
-        obs_tree, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, clipped_action)
+        obs_tree, reward, terminated, truncated, info = self.pd.step(
+            state.time, state.params, state.state, clipped_action
+        )
         obs = self.pd.flatten_obs(obs_tree)
         terminated = info["out_of_bounds"] | info["hit_goal"]
         new_state = PDState(info["time"], state.params, info["state"])
@@ -80,6 +82,10 @@ class PDEnv(Env):
     @property
     def n_actions(self) -> int:
         return self.pd.n_actions
+
+    @property
+    def constr_labels(self):
+        return PopDownGymStateless.constr_labels()
 
 
 class PDEnvAdj(Env):
@@ -169,3 +175,7 @@ class PDEnvAdj(Env):
     @property
     def n_actions(self) -> int:
         return self.pd.n_actions
+
+    @property
+    def constr_labels(self):
+        return PopDownGymStateless.constr_labels()

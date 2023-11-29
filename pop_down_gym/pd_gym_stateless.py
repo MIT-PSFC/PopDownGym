@@ -488,3 +488,18 @@ class PopDownGymStateless:
         config = yaml.safe_load(open(config_filepath, "r"))
         model, _ = Model.create_default()
         return cls(config, model)
+
+    @staticmethod
+    def constr_labels() -> list[str]:
+        constr_labels = [
+            "Ip_MA",
+            "Bv_dot_mag",
+            "Wdot_mag",
+            "beta_n",
+            "beta_p",
+            "li",
+            "ng_frac",
+            "shafranov_coeff",
+            "iota95",
+        ]
+        return constr_labels

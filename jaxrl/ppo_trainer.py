@@ -16,6 +16,7 @@ from jaxrl.ppo import Collector, CollectorCfg, PPOAlg, PPOCfg, PPOEval
 from jaxrl.utils.ckpt_manager import get_checkpointer, get_ckpt_manager_sync
 from jaxrl.utils.jax_types import PRNGKey
 from jaxrl.utils.jax_utils import jax2np
+from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.reward import RewardModel
 
 
@@ -140,17 +141,7 @@ def plot(idx: int, rew_model: RewardModel, data: PPOEval, plot_dir: pathlib.Path
     plot_dir.mkdir(exist_ok=True, parents=True)
     plot_path = plot_dir / f"plot_{idx:06d}.jpg"
 
-    constr_labels = [
-        "Ip_MA",
-        "Bv_dot_mag",
-        "Wdot_mag",
-        "beta_n",
-        "beta_p",
-        "li",
-        "ng_frac",
-        "shafranov_coeff",
-        "iota95",
-    ]
+    constr_labels = PopDownGymStateless.constr_labels()
     nconstr = len(constr_labels)
     constr_ub = rew_model.limits
     Ip_MA_tgt = rew_model.ip_ma["target"]

@@ -10,6 +10,7 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
 
 from jaxrl.ppo import PPOEval
+from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 
 def get_segs(bT_rew, bT_valid_mask, dt: float):
@@ -36,6 +37,8 @@ def main(pkl_path: pathlib.Path):
         "beta_p": [0.25, 0.4],
         "Bv_dot_mag": [0.2, 0.4],
         "Wdot_mag": [20_000_000, 70_000_000],
+        "shafranov_coeff": [3.4, 3.6],
+        "iota95": [0.35, 0.45],
     }
     rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
     shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
@@ -46,14 +49,15 @@ def main(pkl_path: pathlib.Path):
         eval_datas, interp_fracs = pickle.load(f)
 
     datas: list[PPOEval] = eval_datas
-    key = "beta_p"
+    # key = "beta_p"
+    key = "li"
 
     anim_T = len(datas)
 
     interp_fracs = np.array(interp_fracs)
     offsets = interp_fracs * shift_ranges[key]
 
-    constr_labels = ["Ip_MA", "Bv_dot_mag", "Wdot_mag", "beta_n", "beta_p", "li", "ng_frac"]
+    constr_labels = PopDownGymStateless.constr_labels()
     nconstr = len(constr_labels)
 
     dt = 0.05
@@ -66,12 +70,15 @@ def main(pkl_path: pathlib.Path):
         "beta_p": [6.96e-02, 4.57e-01],
         "li": [3.36e-01, 4.19e00],
         "ng_frac": [2.30e-01, 5.83e-01],
+        "shafranov_coeff": [1.95, 4.05],
+        "iota95": [0.05, 0.25],
     }
 
     constr_ub = rew_centers
     Ip_MA_tgt = 2.0
 
-    fig, axes = plt.subplots(nconstr, layout="constrained", sharex=True, dpi=350)
+    figsize = np.array([6, 1.2 * nconstr])
+    fig, axes = plt.subplots(nconstr, layout="constrained", figsize=figsize, sharex=True, dpi=350)
     line_cols, spans = [], []
     ax: plt.Axes
     for ii, ax in enumerate(axes):
@@ -138,7 +145,7 @@ def main(pkl_path: pathlib.Path):
     def progress_callback(curr_frame: int, total_frames: int):
         pbar.update(1)
 
-    path = plot_dir / "anim.mp4"
+    path = plot_dir / "anim_{}.mp4".format(key)
 
     pbar = tqdm.tqdm(total=anim_T)
     ani.save(path, progress_callback=progress_callback)

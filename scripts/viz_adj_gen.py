@@ -26,6 +26,8 @@ def main(ckpt_dir: pathlib.Path):
         "beta_p": [0.25, 0.4],
         "Bv_dot_mag": [0.2, 0.4],
         "Wdot_mag": [20_000_000, 70_000_000],
+        "shafranov_coeff": [3.4, 3.6],
+        "iota95": [0.35, 0.45],
     }
     rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
     shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
@@ -52,9 +54,6 @@ def main(ckpt_dir: pathlib.Path):
     ppo_dict = ckpt_manager.restore(step, items={"ppo": ppo})
     ppo: PPOAlg = ppo_dict["ppo"]
 
-    constr_labels = ["Ip_MA", "Bv_dot_mag", "Wdot_mag", "beta_n", "beta_p", "li", "ng_frac"]
-    nconstr = len(constr_labels)
-
     plot_dir = ckpt_dir.parent / "eval_plots"
     plot_dir.mkdir(exist_ok=True, parents=True)
 
@@ -72,78 +71,19 @@ def main(ckpt_dir: pathlib.Path):
     interp_fracs = np.linspace(-1.0, 1.0, num=30)
     eval_datas = []
     for interp_frac in tqdm.tqdm(interp_fracs):
-        key = "beta_p"
+        # key = "beta_p"
+        key = "li"
         offset = interp_frac * shift_ranges[key]
         offset_dict = {key: offset}
         data = jax2np(test_for_param(offset_dict))
         eval_datas.append(data)
 
     # Save the data.
-    with open(plot_dir / "{:05}_data.pkl".format(step), "wb") as f:
+    pkl_path = plot_dir / "{:05}_data_{}.pkl".format(step, key)
+    with open(pkl_path, "wb") as f:
         pickle.dump((eval_datas, interp_fracs), f)
 
-    logger.info("Saved!")
-    #####################################################
-    # Plot.
-    plot_path = plot_dir / "{:05}_{}_{}.pdf".format(step, key, offset)
-    dt = 0.05
-
-    constr_ub = {
-        "li": 3.0,
-        "ng_frac": 0.5,
-        "beta_n": 0.015,
-        "beta_p": 0.3,
-        "Bv_dot_mag": 0.3,
-        "Wdot_mag": 20000000,
-    }
-    constr_ub[key] += offset
-
-    Ip_MA_tgt = 2.0
-
-    bT_rew_inputs = data.bT_info["reward_inputs"]
-
-    fig, axes = plt.subplots(nconstr, layout="constrained", sharex=True)
-    for ii, ax in enumerate(axes):
-        label = constr_labels[ii]
-
-        b_segs = []
-        bT_rew_input = bT_rew_inputs[label]
-        for bb, T_r in enumerate(bT_rew_input):
-            # Truncate to valid only.
-            if not np.all(data.bT_valid_mask[bb]):
-                idx_first_invalid = data.bT_valid_mask[bb].argmin()
-                T_r = T_r[:idx_first_invalid]
-
-            T = len(T_r)
-            T_ts = dt * np.arange(T)
-            # (T, 2)
-            segs = np.stack([T_ts, T_r], axis=1)
-            b_segs.append(segs)
-
-        col = LineCollection(b_segs, color="C1", lw=0.5, alpha=0.4)
-        ax.add_collection(col)
-        ax.autoscale_view()
-        ax.set_ylabel(label, rotation=0, ha="right")
-
-        # Plot the limits.
-        ymin, ymax = ax.get_ylim()
-        if label in constr_ub:
-            # Expand the ymax a bit.
-            yrange = ymax - ymin
-            ax.set_ylim(ymin, ymax + 0.1 * yrange)
-            ymin, ymax = ax.get_ylim()
-
-            if ymax > constr_ub[label]:
-                ax.axhspan(constr_ub[label], ymax, color="C0", alpha=0.2)
-
-        print("{}: [{:.2e}, {:.2e}]".format(label, ymin, ymax))
-
-        if label == "Ip_MA":
-            ax.axhspan(ymin, Ip_MA_tgt, color="C5", alpha=0.2)
-    #
-    # fig.savefig(plot_path, bbox_inches="tight")
-    # fig.savefig(plot_path.with_suffix(".jpg"), bbox_inches="tight")
-
+    logger.info("Saved to {}!".format(pkl_path))
 
 if __name__ == "__main__":
     with ipdb.launch_ipdb_on_exception():
