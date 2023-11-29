@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import orbax
 import orbax.checkpoint
+from loguru import logger
 
 from jaxrl.env import StepOutput
 from jaxrl.ppo import PPOAlg, PPOCfg
@@ -27,6 +28,15 @@ def main():
     }
     rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
     shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
+
+    #####################################
+    # Shift the constraint boundary during test time.
+    perturb_dict = {"li": 2.0}
+    offset_dict = {k: v - rew_centers[k] for k, v in perturb_dict.items()}
+    for k, v in perturb_dict.items():
+        logger.info("Testing with {} = {} (offset={})".format(k, v, offset_dict[k]))
+    #####################################
+
     ppo_cfg = PPOCfg(
         pol_lr=3e-4,
         val_lr=3e-4,
@@ -40,7 +50,7 @@ def main():
         rew_scale=5e2,
         clip_grad=1.0,
     )
-    env = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
+    env = PDEnvAdj(shift_ranges=shift_ranges, offset=offset_dict, limits=rew_centers, shift_mult=0)
     ppo = PPOAlg.create(jr.PRNGKey(0), env, ppo_cfg)
 
     root_dir = pathlib.Path(__file__).parent.parent
@@ -105,13 +115,18 @@ def main():
         # Plot the limits.
         ymin, ymax = ax.get_ylim()
         if label in constr_ub:
+            constr_ub_ = constr_ub[label]
+
+            if label in offset_dict:
+                constr_ub_ = constr_ub_ + offset_dict[label]
+
             # Expand the ymax a bit.
             yrange = ymax - ymin
             ax.set_ylim(ymin, ymax + 0.1 * yrange)
             ymin, ymax = ax.get_ylim()
 
-            if ymax > constr_ub[label]:
-                ax.axhspan(constr_ub[label], ymax, color="C0", alpha=0.2)
+            if ymax > constr_ub_:
+                ax.axhspan(constr_ub_, ymax, color="C0", alpha=0.2)
 
         if label == "Ip_MA":
             ax.axhspan(ymin, Ip_MA_tgt, color="C5", alpha=0.2)
