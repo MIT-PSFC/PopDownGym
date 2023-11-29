@@ -6,7 +6,7 @@ import jax.random as jr
 from jaxrl.env import Env, StepOutput
 from jaxrl.env_types import Obs
 from jaxrl.utils.jax_types import FloatScalar, PRNGKey
-from pop_down_gym.pd_gym_stateless import PopDownGymStateless, make_pd_stateless
+from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.reward import RewardModel
 from loguru import logger
 
@@ -36,11 +36,12 @@ class PDAdjState(NamedTuple):
 
 class PDEnv(Env):
     def __init__(self):
-        self.pd, _ = make_pd_stateless()
+        self.pd = PopDownGymStateless.create_env()
 
     def step_env(self, key: PRNGKey, state: PDState, action) -> StepOutput:
         clipped_action = action.clip(-1, 1)
-        obs, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, clipped_action)
+        obs_tree, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, clipped_action)
+        obs = self.pd.flatten_obs(obs_tree)
         terminated = info["out_of_bounds"] | info["hit_goal"]
         new_state = PDState(info["time"], state.params, info["state"])
 
@@ -54,7 +55,7 @@ class PDEnv(Env):
 
     def _params_to_obsvec(self, params: PDParamsDict) -> Obs:
         obs = []
-        for k, obs_range in PopDownGymStateless.RANDOM_PARAM_RANGES.items():
+        for k, obs_range in self.pd.random_param_ranges.items():
             # Normalize to [0, 1]
             obs_normalized = (params[k] - obs_range[0]) / (obs_range[1] - obs_range[0])
             # Normalize to [-1, 1]
@@ -64,12 +65,13 @@ class PDEnv(Env):
         return jnp.array(obs)
 
     def reset_env(self, key: PRNGKey) -> tuple[Obs, Obs, PDState]:
-        params, state, obs, info = self.pd.reset(key)
+        params, state, obs_tree, info = self.pd.reset(key)
         env_state = PDState(
             info["time"],
             params,
             state,
         )
+        obs = self.pd.flatten_obs(obs_tree)
         params_vec = self._params_to_obsvec(env_state.params)
         obs_priv = jnp.concatenate([obs, params_vec], axis=0)
         assert obs_priv.ndim == 1
@@ -86,7 +88,7 @@ class PDEnvAdj(Env):
             shift_ranges = {"Bv_dot_mag": 0.1, "beta_p": 0.1, "li": 1.0}
         if offset is None:
             offset = {}
-        self.pd, _ = make_pd_stateless()
+        self.pd = PopDownGymStateless.create_env()
         if limits is not None:
             logger.info("Overriding reward model limits:")
             for k, new_limit in limits.items():
@@ -99,7 +101,8 @@ class PDEnvAdj(Env):
         self.shift_mult = shift_mult
 
     def step_env(self, key: PRNGKey, state: PDAdjState, action) -> StepOutput:
-        obs, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, action)
+        obs_tree, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, action)
+        obs = self.pd.flatten_obs(obs_tree)
         terminated = info["out_of_bounds"] | info["hit_goal"]
         new_state = PDAdjState(info["time"], state.params, info["state"], state.shifts)
 
@@ -133,7 +136,7 @@ class PDEnvAdj(Env):
 
     def _params_to_obsvec(self, params: PDParamsDict) -> Obs:
         obs = []
-        for k, obs_range in PopDownGymStateless.RANDOM_PARAM_RANGES.items():
+        for k, obs_range in self.pd.random_param_ranges.items():
             # Normalize to [0, 1]
             obs_normalized = (params[k] - obs_range[0]) / (obs_range[1] - obs_range[0])
             # Normalize to [-1, 1]
@@ -144,7 +147,8 @@ class PDEnvAdj(Env):
 
     def reset_env(self, key: PRNGKey) -> tuple[Obs, Obs, PDAdjState]:
         key_pd, key_shifts = jr.split(key, 2)
-        params, state, obs, info = self.pd.reset(key_pd)
+        params, state, obs_tree, info = self.pd.reset(key_pd)
+        obs = self.pd.flatten_obs(obs_tree)
 
         shifts_arr = self.shift_mult * jr.uniform(key_shifts, (len(self.shift_ranges),), minval=-1, maxval=1)
 

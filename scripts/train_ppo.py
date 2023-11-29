@@ -2,7 +2,6 @@ import pathlib
 from typing import Optional
 
 import ipdb
-import jax
 import jax.random as jr
 import typer
 
@@ -15,11 +14,10 @@ from pop_down_gym.pd_gym_jaxrl import PDEnv
 
 def main(warmstart: Optional[pathlib.Path] = None):
     set_logger_format()
-    # jax.config.update("jax_traceback_filtering", "off")
 
     key = jr.PRNGKey(54123)
     env = PDEnv()
-    env.pd.reward_model.limits["li"] = 2.0
+    # env.pd.reward_model.limits["li"] = 2.0
 
     train_cfg = PPOTrainCfg(
         gae_lambda=0.95,
@@ -34,9 +32,9 @@ def main(warmstart: Optional[pathlib.Path] = None):
     ppo_cfg = PPOCfg(
         pol_lr=3e-4,
         val_lr=3e-4,
-        # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
+        entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
         # entropy_cf=1e-3,
-        entropy_cf=2e-3,
+        # entropy_cf=2e-3,
         disc_gamma=0.99,
         pol_hid_sizes=[256, 256, 256],
         val_hid_sizes=[256, 256, 256],

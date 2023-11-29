@@ -434,6 +434,16 @@ class PopDownGymStateless:
         }
         return out
 
+    def flatten_obs(self, obs: PyTree[float]) -> jnp.ndarray:
+        assert obs["Hmode"].dtype == jnp.int32
+        obs_cts = obs["continuous"]
+        obs_hmode = jnp.where(obs["Hmode"] == 1, 1.0, -1.0)
+        
+        assert obs_cts.shape == (len(self.CONT_STATES),)
+        assert obs_hmode.shape == tuple()
+        obs = jnp.concatenate([obs_cts, obs_hmode[None]], axis=0)
+        return obs
+
     def simulate_trajectory_open_loop(self, prng_key, open_loop_actions, steps=100):
         """
         Simulate an open-loop trajectory for a fixed number of steps.
