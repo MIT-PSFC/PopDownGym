@@ -107,7 +107,7 @@ class PDEnvAdj(Env):
         new_state = PDAdjState(info["time"], state.params, info["state"], state.shifts)
 
         # Recompute the reward.
-        action = {action_name: action[i] for i, action_name in enumerate(self.pd.ACTION_RANGES.keys())}
+        action = {action_name: action[i] for i, action_name in enumerate(self.pd.action_ranges.keys())}
         unnormalized_action = self.pd.unnormalize_action(action)
 
         params = self.pd.reward_model.params.copy()
