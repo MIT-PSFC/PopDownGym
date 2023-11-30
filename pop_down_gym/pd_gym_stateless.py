@@ -419,7 +419,7 @@ class PopDownGymStateless:
 
         Returns:
             PyTree[float]: observations normalized to [-1, 1].
-        """        
+        """
         obs = np.zeros(len(self.CONT_STATES))
 
         def remap(key):
@@ -433,6 +433,16 @@ class PopDownGymStateless:
             "Hmode": state["Hmode"],
         }
         return out
+
+    def flatten_obs(self, obs: PyTree[float]) -> jnp.ndarray:
+        assert obs["Hmode"].dtype == jnp.int32
+        obs_cts = obs["continuous"]
+        obs_hmode = jnp.where(obs["Hmode"] == 1, 1.0, -1.0)
+        
+        assert obs_cts.shape == (len(self.CONT_STATES),)
+        assert obs_hmode.shape == tuple()
+        obs = jnp.concatenate([obs_cts, obs_hmode[None]], axis=0)
+        return obs
 
     def simulate_trajectory_open_loop(self, prng_key, open_loop_actions, steps=100):
         """
@@ -478,3 +488,18 @@ class PopDownGymStateless:
         config = yaml.safe_load(open(config_filepath, "r"))
         model, _ = Model.create_default()
         return cls(config, model)
+
+    @staticmethod
+    def constr_labels() -> list[str]:
+        constr_labels = [
+            "Ip_MA",
+            "Bv_dot_mag",
+            "Wdot_mag",
+            "beta_n",
+            "beta_p",
+            "li",
+            "ng_frac",
+            "shafranov_coeff",
+            "iota95",
+        ]
+        return constr_labels

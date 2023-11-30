@@ -18,7 +18,7 @@ def sigmoid(x: float, c1: float, c2: float) -> float:
 
 class RewardModel:
     def __init__(self, reward_params) -> None:
-        self.params = reward_params
+        self.params: dict = reward_params
         self.limits = reward_params["limits"]
         self.barrier = reward_params["barrier"]
         self.ip_ma = reward_params["ip_ma"]
