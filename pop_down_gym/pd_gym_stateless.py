@@ -1,4 +1,5 @@
 import os
+from loguru import logger
 from functools import partial
 from typing import Tuple, Dict
 from jaxtyping import PyTree
@@ -486,7 +487,9 @@ class PopDownGymStateless:
     def create_env(cls):
         config_filepath = os.path.join(pop_down_gym.ROOT_DIR, "configs/gym.yaml")
         config = yaml.safe_load(open(config_filepath, "r"))
-        model, _ = Model.create_default()
+        logger.info("Creating default...")
+        model, _ = Model.create_cached_default()
+        logger.info("Creating default... done!")
         return cls(config, model)
 
     @staticmethod
