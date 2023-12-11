@@ -2,7 +2,47 @@
 import equinox as eqx
 import jax
 import matplotlib.pyplot as plt
-from train_es import MLP, create_env, rollout_closed_loop
+
+import wandb
+from scripts.es.train.es_closed_loop import (MLP, create_env,
+                                             rollout_closed_loop)
+
+
+def plot_rollout_results(t, states, reward_inputs, rewards):
+    # Plot the state trajectories
+    for var, state in states.items():
+        fig, ax = plt.subplots()
+        ax.plot(t.T, state.T)
+        ax.set_ylabel(var)
+        ax.set_xlabel("Time (s)")
+        wandb.log({f"State Trajectory/{var}": fig}, commit=False)
+
+    for var, term in reward_inputs.items():
+        fig, ax = plt.subplots()
+        ax.plot(t.T, term.T)
+
+        if var in env.reward_model.limits:
+            ax.plot(
+                t.T, t.T * 0 + env.reward_model.limits[var], color="k", linestyle="--"
+            )
+
+        if var == "Ip_MA":
+            ax.plot(
+                t.T,
+                t.T * 0 + env.reward_model.ip_ma["target"],
+                color="k",
+                linestyle="--",
+            )
+
+        ax.set_ylabel(var)
+        ax.set_xlabel("Time (s)")
+        wandb.log({f"Reward Input Trajectory/{var}": fig}, commit=False)
+
+    fig, ax = plt.subplots()
+    ax.plot(t.T, reward_traces.T)
+    ax.set_ylabel("Reward")
+    ax.set_xlabel("Time (s)")
+    wandb.log({"Reward Trace": fig}, commit=False)
 
 if __name__ == "__main__":
     prng_key = jax.random.PRNGKey(0)
