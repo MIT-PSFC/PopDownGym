@@ -25,6 +25,11 @@ seaborn = "^0.13.0"
 evosax = "^0.1.5"
 ipdb = "^0.13.13"
 loguru = "^0.7.2"
+typer = "^0.9.0"
+tensorflow-probability = "^0.23.0"
+einops = "^0.7.0"
+netcdf4 = "^1.6.5"
+orbax-checkpoint = "^0.4.1"
 
 [[tool.poetry.source]]
 name = "jax_cuda"
