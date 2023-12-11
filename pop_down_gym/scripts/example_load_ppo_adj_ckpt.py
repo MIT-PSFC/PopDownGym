@@ -1,5 +1,4 @@
 import pathlib
-
 import ipdb
 import jax
 import jax.lax as lax
@@ -53,7 +52,7 @@ def main():
     env = PDEnvAdj(shift_ranges=shift_ranges, offset=offset_dict, limits=rew_centers, shift_mult=0)
     ppo = PPOAlg.create(jr.PRNGKey(0), env, ppo_cfg)
 
-    root_dir = pathlib.Path(__file__).parent.parent
+    root_dir = pathlib.Path(__file__).parent.parent.parent
     tmp_dir = root_dir / "tmp"
     ckpt_path = tmp_dir / "ppo_adj_ckpt"
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
