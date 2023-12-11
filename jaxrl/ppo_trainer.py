@@ -58,7 +58,7 @@ def train_ppo(
     cfg_total = {"ppo": attrs.asdict(ppo_cfg), "collect": attrs.asdict(collect_cfg)}
     wandb.init(project=project_name, config=cfg_total)
 
-    run_dir = pathlib.Path(__file__).parent.parent / "runs/{}".format(wandb.run.name)
+    run_dir = pathlib.Path(__file__).parent.parent.parent / "runs/{}".format(wandb.run.name)
     ckpt_dir = run_dir / "ckpts"
     plot_dir = run_dir / "plots"
 
