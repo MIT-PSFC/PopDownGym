@@ -7,6 +7,7 @@ import jax
 import jax.random as jr
 import matplotlib.pyplot as plt
 import numpy as np
+import orbax
 import tqdm
 import typer
 from loguru import logger
@@ -32,8 +33,6 @@ def main(ckpt_dir: pathlib.Path):
     rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
     shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
 
-    ckpt_manager = get_ckpt_manager_sync(ckpt_dir, max_to_keep=100)
-
     ppo_cfg = PPOCfg(
         pol_lr=3e-4,
         val_lr=3e-4,
@@ -50,11 +49,20 @@ def main(ckpt_dir: pathlib.Path):
     env = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
     ppo = PPOAlg.create(jr.PRNGKey(5123), env, ppo_cfg)
 
-    step = ckpt_manager.latest_step()
-    ppo_dict = ckpt_manager.restore(step, items={"ppo": ppo})
-    ppo: PPOAlg = ppo_dict["ppo"]
+    if (ckpt_dir / "checkpoint").exists() and (ckpt_dir / "checkpoint").is_file():
+        orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+        ppo_dict = orbax_checkpointer.restore(ckpt_dir, item={"ppo": ppo})
+        ppo: PPOAlg = ppo_dict["ppo"]
+        step = int(ppo.update_idx)
 
-    plot_dir = ckpt_dir.parent / "eval_plots"
+        plot_dir = ckpt_dir.parent / "ppo_viz_adj"
+    else:
+        ckpt_manager = get_ckpt_manager_sync(ckpt_dir, max_to_keep=100)
+        step = ckpt_manager.latest_step()
+        ppo_dict = ckpt_manager.restore(step, items={"ppo": ppo})
+        ppo: PPOAlg = ppo_dict["ppo"]
+
+        plot_dir = ckpt_dir.parent / "eval_plots"
     plot_dir.mkdir(exist_ok=True, parents=True)
 
     @jax.jit
@@ -84,6 +92,7 @@ def main(ckpt_dir: pathlib.Path):
         pickle.dump((eval_datas, interp_fracs), f)
 
     logger.info("Saved to {}!".format(pkl_path))
+
 
 if __name__ == "__main__":
     with ipdb.launch_ipdb_on_exception():
