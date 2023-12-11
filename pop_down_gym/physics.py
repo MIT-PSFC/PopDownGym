@@ -3,131 +3,72 @@ import math
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from typing import Dict
 
 
-class TauEInput(eqx.Module):
-    IPB98_TABLEAU = {
-        "C": 0.0562,
-        "I": 0.93,
-        "B": 0.15,
-        "R": 1.97,
-        "eps": 0.58,
-        "n": 0.41,
-        "kappa": 0.78,
-        "M": 0.19,
-        "P": -0.69,
-    }
-    IPB89_TABLEAU = {
-        "C": 0.0380,
-        "I": 0.85,
-        "B": 0.20,
-        "R": 1.50,
-        "eps": 0.30,
-        "n": 0.10,
-        "kappa": 0.50,
-        "M": 0.50,
-        "P": -0.50,
-    }
-    R0: float  # Major radius [m]
-    BPhi0: float  # On-axis toroidal field [T]
-    H: float  # H factor [-]
-    AFM: float  # Effective fuel atomic mass [AMU]
-    ne19: float  # Electron density [x10^19 m^-3]
-    kappa_a: float  # Plasma elongation defined as cross-sectional area/(pi*a^2) [-]
-    a: float  # Plasma minor radius [m]
-    Ip_MA: float  # Plasma current [MA]
-    Psol: float  # Power conducted to the scrape-off layer [MW]
+class TauEScaling(eqx.Module):
+    class InputData(eqx.Module):
+        R0: float
+        BPhi0: float
+        H: float
+        AFM: float
+        ne19: float
+        kappa_a: float
+        a: float
+        Ip_MA: float
+        Psol: float
+        Hmode: bool
 
-    def epsilon(self) -> float:
-        return self.a / self.R0  # inverse aspect ratio [-]
+    HMODE_TABLEAU: Dict[str, float]
+    LMODE_TABLEAU: Dict[str, float]
 
-    def plasma_volume(self) -> float:
-        return plasma_volume(self.R0, self.a, self.kappa_a)
+    def __init__(self):
+        # Initialize the H-mode tableau to the IPB98(y,2) values.
+        self.HMODE_TABLEAU = {
+            "C": 0.0562,
+            "I": 0.93,
+            "B": 0.15,
+            "R": 1.97,
+            "eps": 0.58,
+            "n": 0.41,
+            "kappa": 0.78,
+            "M": 0.19,
+            "P": -0.69,
+        }
+        # Initialize the L-mode tableau to the IPB89 values.
+        self.LMODE_TABLEAU = {
+            "C": 0.0380,
+            "I": 0.85,
+            "B": 0.20,
+            "R": 1.50,
+            "eps": 0.30,
+            "n": 0.10,
+            "kappa": 0.50,
+            "M": 0.50,
+            "P": -0.50,
+        }
 
-    def scaling_law(self, tableau):
-        val = (
+    def __call__(self, input_data: InputData) -> float:
+        tableau = jax.lax.cond(
+            input_data.Hmode, lambda: self.HMODE_TABLEAU, lambda: self.LMODE_TABLEAU
+        )
+        epsilon = input_data.a / input_data.R0
+        taue = (
             tableau["C"]
-            * self.H
-            * self.Ip_MA ** tableau["I"]
-            * self.BPhi0 ** tableau["B"]
-            * self.R0 ** tableau["R"]
-            * self.epsilon() ** tableau["eps"]
-            * self.ne19 ** tableau["n"]
-            * self.kappa_a ** tableau["kappa"]
-            * self.AFM ** tableau["M"]
-            * self.Psol ** tableau["P"]
+            * input_data.H
+            * input_data.Ip_MA ** tableau["I"]
+            * input_data.BPhi0 ** tableau["B"]
+            * input_data.R0 ** tableau["R"]
+            * epsilon ** tableau["eps"]
+            * input_data.ne19 ** tableau["n"]
+            * input_data.kappa_a ** tableau["kappa"]
+            * input_data.AFM ** tableau["M"]
+            * input_data.Psol ** tableau["P"]
         )
-        return val
+        return taue
 
-    def scaling_law_alt_psol(self, tableau, psol):
-        val = (
-            tableau["C"]
-            * self.H
-            * self.Ip_MA ** tableau["I"]
-            * self.BPhi0 ** tableau["B"]
-            * self.R0 ** tableau["R"]
-            * self.epsilon() ** tableau["eps"]
-            * self.ne19 ** tableau["n"]
-            * self.kappa_a ** tableau["kappa"]
-            * self.AFM ** tableau["M"]
-            * psol ** tableau["P"]
-        )
-        return val
-
-    def ipb98(self) -> float:
-        return self.scaling_law(self.IPB98_TABLEAU)
-
-    def ipb89(self) -> float:
-        return self.scaling_law(self.IPB89_TABLEAU)
-
-    def ipb98_altpsol(self, psol) -> float:
-        return self.scaling_law_alt_psol(self.IPB98_TABLEAU, psol)
-
-    def ipb89_altpsol(self, psol) -> float:
-        return self.scaling_law_alt_psol(self.IPB89_TABLEAU, psol)
-
-    @classmethod
-    def cmod_default(cls):
-        """
-        Parameters for shot 1160930033 from:
-        Hughes, J. W., et al. "Access to pedestal pressure relevant to burning plasmas on the high
-        magnetic field tokamak Alcator C-Mod." Nuclear Fusion 58.11 (2018): 112003.
-        """
-        volume = 0.94  # m^3
-        R0 = 0.68
-        a = 0.22
-        cross_sectional_area = volume / (2.0 * math.pi * R0)
-        kappa_a = cross_sectional_area / (math.pi * a**2.0)
-        # Note: paper reports 5.4 MW input power and 1.8 MW radiated power.
-        return cls(
-            R0=R0,
-            BPhi0=5.7,
-            H=0.8,  # H98 in this case.
-            AFM=2.0,
-            ne19=50,
-            kappa_a=kappa_a,
-            a=0.22,
-            Ip_MA=1.4,
-            Psol=5.4 - 1.8,  # 5.4 MW input power and 1.8 MW radiated power.
-        )
-
-    @classmethod
-    def sparc_default(cls):
-        return cls(
-            R0=1.85,
-            BPhi0=12.2,
-            H=1.0,  # H98 in this case.
-            AFM=2.5,
-            ne19=31,
-            kappa_a=1.97,
-            a=0.57,
-            Ip_MA=8.7,
-            Psol=1.7  # 1.7 MW Ohmic.
-            + 11.1  # 11.1 MW RF.
-            + 0.2
-            * 140  # 140MW fusion, with 1/5 of the fusion power going to alpha particles.
-            - 10.4,  # 10.4 MW radiated.
-        )
+    def trainable_params_filter_spec(self):
+        return eqx.is_inexact_array_like
 
 
 def shafranov_coeff(
@@ -367,11 +308,6 @@ def betas_to_beta_n(
     betan = beta * a * B0 / Ip_MA
     return betan
 
-
-def replace_nan_warn_and_sum(q):
-    return jnp.sum(jnp.nan_to_num(q, nan=0.0))
-
-
 def volume_integral(
     quantity: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray
 ) -> float:
@@ -386,12 +322,7 @@ def volume_integral(
         float: integrated quantity.
     """
     product = jnp.multiply(wgauss, jnp.multiply(quantity, Vp))
-    out = jax.lax.cond(
-        jnp.any(jnp.isnan(product)),
-        lambda q: replace_nan_warn_and_sum(q),
-        lambda q: jnp.sum(q),
-        product,
-    )
+    out = jnp.sum(product)
     return out
 
 
@@ -457,9 +388,9 @@ def q95(
     delta: float,
     w07: float,
 ) -> float:
-    """ Approximation of the safety factor at the 95% flux surface from:
+    """Approximation of the safety factor at the 95% flux surface from:
 
-    Sauter, O. "Geometric formulas for system codes including the effect 
+    Sauter, O. "Geometric formulas for system codes including the effect
     of negative triangularity." Fusion Engineering and Design 112 (2016).
 
     Args:

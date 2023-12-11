@@ -1,5 +1,6 @@
 from pop_down_gym.load_data import load_data
 from pop_down_gym.profiles import ProfileBases
+import equinox as eqx
 
 
 def test_simple_profile_basis():
@@ -33,3 +34,30 @@ def test_simple_profile_basis():
         # Could we have anything more informative here?
         assert te_kev_vol_avg is not None
         assert te_kev_profile is not None
+    
+    # Test that the bases are split right.
+    trainable, static = eqx.partition(hmode_basis, hmode_basis.trainable_params_filter_spec())
+
+    # Check the Te_basis is split right.
+    assert trainable.Te_basis.v is not None and trainable.Te_basis.b is not None
+    assert trainable.Te_basis.rhogauss is None and trainable.Te_basis.wgauss is None
+    assert static.Te_basis.v is None and static.Te_basis.b is None
+    assert static.Te_basis.rhogauss is not None and static.Te_basis.wgauss is not None
+
+    # Check the Ti_basis is split right.
+    assert trainable.Ti_basis.v is not None and trainable.Ti_basis.b is not None
+    assert trainable.Ti_basis.rhogauss is None and trainable.Ti_basis.wgauss is None
+    assert static.Ti_basis.v is None and static.Ti_basis.b is None
+    assert static.Ti_basis.rhogauss is not None and static.Ti_basis.wgauss is not None
+
+    # Check the ne_basis is split right.
+    assert trainable.ne_basis.v is not None and trainable.ne_basis.b is not None
+    assert trainable.ne_basis.rhogauss is None and trainable.ne_basis.wgauss is None
+    assert static.ne_basis.v is None and static.ne_basis.b is None
+    assert static.ne_basis.rhogauss is not None and static.ne_basis.wgauss is not None
+
+    # Check the ni_basis is split right.
+    assert trainable.ni_basis.v is not None and trainable.ni_basis.b is not None
+    assert trainable.ni_basis.rhogauss is None and trainable.ni_basis.wgauss is None
+    assert static.ni_basis.v is None and static.ni_basis.b is None
+    assert static.ni_basis.rhogauss is not None and static.ni_basis.wgauss is not None

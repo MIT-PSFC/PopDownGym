@@ -10,8 +10,8 @@ packages = [{include = "pop_down_gym"}]
 python = ">=3.9, <3.10"
 scipy = "^1.10.1"
 pytest = "^7.4.0"
-jaxlib = {version = "^0.4.14+cuda12.cudnn89", source = "jax_cuda"}
-jax = {extras = ["cuda12-pip"], version = "^0.4.20"}
+jaxlib = {version = "^0.4.16+cuda12.cudnn89", source = "jax_cuda"}
+jax = {extras = ["cuda12-pip"], version = "^0.4.16"}
 gymnasium = "0.28.1"
 contrax = { path = "contrax/", develop = true }
 debugpy = "1.6.7"
@@ -23,6 +23,14 @@ tensorboard = "^2.14.0"
 urllib3 = "1.26.16"
 seaborn = "^0.13.0"
 evosax = "^0.1.5"
+ipdb = "^0.13.13"
+loguru = "^0.7.2"
+typer = "^0.9.0"
+tensorflow-probability = "^0.23.0"
+einops = "^0.7.0"
+netcdf4 = "^1.6.5"
+orbax-checkpoint = "^0.4.1"
+typing-extensions = "^4.9.0"
 
 [[tool.poetry.source]]
 name = "jax_cuda"

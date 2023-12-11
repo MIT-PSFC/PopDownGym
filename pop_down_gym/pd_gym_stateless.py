@@ -10,7 +10,8 @@ from jaxtyping import PyTree
 
 import pop_down_gym
 import pop_down_gym.physics as physics
-from contrax.simulate import SimFFControl
+from contrax.simulate import SimFullObs
+import pop_down_gym
 from pop_down_gym.model import Model
 from pop_down_gym.reward import RewardModel
 from pop_down_gym.utils import remap_range
@@ -37,7 +38,7 @@ class PopDownGymStateless:
         self.time_limit = cfg["time_limit"]
 
         # Initialize the simulator.
-        self.simulator = SimFFControl(
+        self.simulator = SimFullObs(
             model, dt0=cfg["dt"] / 5.0
         )  # Do 5 steps per gym dt.
         self.reward_model = RewardModel(cfg["reward"])
@@ -155,15 +156,16 @@ class PopDownGymStateless:
             action[action_name] = remap_range(
                 action_val, action_space_range, self.action_ranges[action_name]
             )
-        return action
+        return action        
 
     def check_out_of_bounds(self, obs):
         """Check if the given observations are in bounds or not"""
 
         def in_bound(i):
+            # Note: if the observation is nan, then it is out of bounds.
             return jnp.logical_and(
                 obs["continuous"][i] >= self.observation_space["continuous"][0][i],
-                obs["continuous"][i] <= self.observation_space["continuous"][1][i],
+                obs["continuous"][i] <= self.observation_space["continuous"][1][i]
             )
 
         continuous_obs_in_bounds = jax.tree_map(
@@ -236,10 +238,10 @@ class PopDownGymStateless:
             "prad_mult": random_params["prad_mult"],
         }
 
-        # SimFFControl needs controls at all time steps in "ts".
+        # SimFullObs needs controls at all time steps in "ts".
         # Let's just assume a zero-order-hold, so constant action over the simulation step.
         controls = jax.tree_map(lambda x: jnp.repeat(x, 2), action)
-        res = self.simulator.simulate(ts, initial_state, controls, params)
+        res = self.simulator.simulate(ts, initial_state, controls, params=params)
 
         # Evaluate the model at the first and last time steps in debug mode to get info.
         ys0 = jax.tree_map(lambda x: x[0], res.ys)
@@ -404,6 +406,9 @@ class PopDownGymStateless:
         """
         unnormalized_action = self.dictify_and_unnormalize_action(action)
         new_state, reward_inputs = self._step(state, unnormalized_action, params)
+
+
+
         reward, reward_terms = self.reward_model.reward(
             reward_inputs, unnormalized_action
         )
@@ -416,14 +421,13 @@ class PopDownGymStateless:
         terminated = jnp.logical_or(truncated, out_of_bounds)
         terminated = jnp.logical_or(terminated, hit_goal)
 
-        # # If we're using a sparse reward, then stop the episode on constraint violation
-        # if self.reward_model.sparse:
-        #     constraint_violation = self.check_constraint_violation(reward_terms)
-        #     terminated = jnp.logical_or(terminated, constraint_violation)
-
+        """
+        TODO(allenw): If we go out of bounds, we want to not have the new out of bounds
+        state corrupt the results. Right now, this is handeled in a pretty hacky way.
+        """
         info = {
             "time": next_time,
-            "state": new_state,
+            "state": jax.lax.cond(out_of_bounds, lambda _: state, lambda _: new_state, operand=None),
             "action": unnormalized_action,
             "reward_inputs": reward_inputs,
             "reward_terms": reward_terms,
@@ -432,7 +436,17 @@ class PopDownGymStateless:
             "out_of_bounds": out_of_bounds,
         }
 
-        return obs, reward, terminated, truncated, info
+        obs_out = jax.lax.cond(
+            out_of_bounds,
+            lambda _: self.state_to_obs(state),
+            lambda _: obs,
+            operand=None,
+        )
+        reward = jnp.nan_to_num(reward, nan=self.reward_model.params["oob_reward"])
+        info = jax.tree_map(lambda x: jnp.nan_to_num(x, nan=0.0), info)
+
+
+        return obs_out, reward, terminated, truncated, info
 
     def state_to_obs(self, state: PyTree[float]) -> PyTree[float]:
         """Convert the state to an observation. This problem provides full observability, but
@@ -459,7 +473,6 @@ class PopDownGymStateless:
         return out
 
     def flatten_obs(self, obs: PyTree[float]) -> jnp.ndarray:
-        assert obs["Hmode"].dtype == jnp.int32
         obs_cts = obs["continuous"]
         obs_hmode = jnp.where(obs["Hmode"] == 1, 1.0, -1.0)
 

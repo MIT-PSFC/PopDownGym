@@ -1,6 +1,6 @@
 import functools as ft
-from typing import Any, Callable, Iterable, ParamSpec, Sequence, TypeVar
-
+from typing import Any, Callable, Iterable, Sequence, Union
+from typing_extensions import ParamSpec, TypeVar
 import einops as ei
 import jax
 import jax.numpy as jnp
@@ -24,13 +24,13 @@ def merge01(x):
     return ei.rearrange(x, "n1 n2 ... -> (n1 n2) ...")
 
 
-def rep_vmap(fn: _Fn, rep: int, in_axes: int | Sequence[Any] = 0, **kwargs) -> _Fn:
+def rep_vmap(fn: _Fn, rep: int, in_axes: Union[int, Sequence[Any]] = 0, **kwargs) -> _Fn:
     for ii in range(rep):
         fn = jax.vmap(fn, in_axes=in_axes, **kwargs)
     return fn
 
 
-def jax_vmap(fn: _Fn, in_axes: int | Sequence[Any] = 0, out_axes: Any = 0, rep: int = None) -> _Fn:
+def jax_vmap(fn: _Fn, in_axes: Union[int, Sequence[Any]] = 0, out_axes: Any = 0, rep: int = None) -> _Fn:
     if rep is not None:
         return rep_vmap(fn, rep=rep, in_axes=in_axes, out_axes=out_axes)
 

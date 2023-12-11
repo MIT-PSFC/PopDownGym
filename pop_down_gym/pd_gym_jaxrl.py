@@ -1,3 +1,6 @@
+import pathlib
+import orbax
+import orbax.checkpoint
 from typing import NamedTuple, TypedDict
 
 import jax.numpy as jnp
@@ -7,6 +10,8 @@ from loguru import logger
 from jaxrl.env import Env, StepOutput
 from jaxrl.env_types import Obs
 from jaxrl.utils.jax_types import FloatScalar, PRNGKey
+from jaxrl.ppo import PPOAlg, PPOCfg
+
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.reward import RewardModel
 
@@ -179,3 +184,46 @@ class PDEnvAdj(Env):
     @property
     def constr_labels(self):
         return PopDownGymStateless.constr_labels()
+
+def default_build_ppo(shift_dict = {}):
+    rew_bounds = {
+        "li": [2, 3],
+        "ng_frac": [0.5, 0.8],
+        "beta_n": [0.015, 0.028],
+        "beta_p": [0.25, 0.4],
+        "Bv_dot_mag": [0.2, 0.4],
+        "Wdot_mag": [20_000_000, 70_000_000],
+        "shafranov_coeff": [3.4, 3.6],
+        "iota95": [0.35, 0.45],
+    }
+    rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
+    shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
+    limits = rew_centers
+    for k, v in shift_dict.items():
+        limits[k] += v * shift_ranges[k]
+    offset_dict = {}
+
+
+    ppo_cfg = PPOCfg(
+        pol_lr=3e-4,
+        val_lr=3e-4,
+        entropy_cf=1.0,
+        disc_gamma=0.99,
+        pol_hid_sizes=[256, 256, 256],
+        val_hid_sizes=[256, 256, 256],
+        act="tanh",
+        pol_type="TanhNormal",
+        train_cfg=None,
+        rew_scale=5e2,
+        clip_grad=1.0,
+    )
+    env = PDEnvAdj(shift_ranges=shift_ranges, offset=offset_dict, limits=limits, shift_mult=0)
+    ppo = PPOAlg.create(jr.PRNGKey(0), env, ppo_cfg)
+
+    root_dir = pathlib.Path(__file__).parent.parent
+    tmp_dir = root_dir / "tmp"
+    ckpt_path = tmp_dir / "ppo_adj_ckpt"
+    orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+    ppo_dict = orbax_checkpointer.restore(ckpt_path, item={"ppo": ppo})
+    ppo: PPOAlg = ppo_dict["ppo"]
+    return ppo, env, offset_dict, tmp_dir

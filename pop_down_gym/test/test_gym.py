@@ -29,7 +29,7 @@ def test_env_sample_params():
 
 def test_env_n_obs():
     env = PopDownGymStateless.create_env()
-    assert env.n_obs == len(env.observation_space["continuous"]) + 1
+    assert env.n_obs == env.observation_space["continuous"].shape[1] + 1
 
 def test_benchmark_simulate():
     batch_sizes = [1, 16]
