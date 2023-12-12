@@ -14,10 +14,14 @@ import equinox as eqx
 import evosax as es
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
 from tqdm import tqdm
 
 import wandb
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
+from scripts.es.train.es_open_loop import (plot_hit_time_vs_reward,
+                                           plot_test_set_trajectories)
 
 
 class MLP(eqx.Module):
@@ -67,16 +71,65 @@ def rollout_closed_loop(prng_key, env, policy, steps=100):
 
         # prepare the carry for the next iteration
         carry = (next_state, obs, next_time, done)
-        output = (reward, next_state, next_time, info["reward_inputs"])
+        output = (
+            reward,
+            next_state,
+            next_time,
+            info["reward_inputs"],
+            info["hit_goal"],
+            action,
+        )
 
         return carry, output
 
     # Simulate the trajectory
-    _, (rewards, states, t, reward_inputs) = jax.lax.scan(
+    _, (rewards, states, t, reward_inputs, hit_goal, action) = jax.lax.scan(
         scan_step, (initial_state, initial_obs, 0.0, False), None, length=steps
     )
 
-    return rewards.sum(), states, t, reward_inputs, rewards
+    return rewards.sum(), states, t, reward_inputs, rewards, hit_goal, action
+
+
+def plot_action_trajectory(env, t, action_trajectory, save_path=None, commit_wandb=False):
+    action_lims = {
+        "dIp_dt": [-3.0, -0.5],
+        "dPaux_dt": [-5.0, 5.0],
+        "fueling19": [0.0, 10.0],
+        "dgs_dt": [0.0, 1.0],
+    }
+
+    unnormalized_trajectory = jax.vmap(jax.vmap(env.dictify_and_unnormalize_action))(
+        action_trajectory
+    )
+    n_actions = env.n_actions
+    figsize = np.array([6, 1.2 * n_actions])
+    fig, axes = plt.subplots(
+        n_actions, layout="constrained", figsize=figsize, sharex=True, dpi=350
+    )
+    for i, label in enumerate(unnormalized_trajectory):
+        ax = axes[i]
+        actions = unnormalized_trajectory[label]
+        ax.plot(t.T, actions.T, color="C1", lw=0.5, alpha=0.4)
+        ax.set_ylabel(label, rotation=0, ha="right")
+
+        # Set the limits.
+        ax.autoscale_view()
+        ax.set_ylim(action_lims[label])
+
+        # Plot the limits.
+        ymin, ymax = ax.get_ylim()
+        # Expand the ymax a bit.
+        yrange = ymax - ymin
+        ax.set_ylim(ymin - 0.1 * yrange, ymax + 0.1 * yrange)
+        ymin, ymax = ax.get_ylim()
+        # Add a shaded region indicating the limit.
+        ax.axhspan(min(ymax, action_lims[label][1]), ymax, color="C0", alpha=0.2)
+        ax.axhspan(ymin, max(ymin, action_lims[label][0]), color="C0", alpha=0.2)
+
+    if save_path is not None:
+        plt.savefig(os.path.join(save_path, "feedforward_trajectory.png"))
+
+    wandb.log({"Feedforward trajectory": fig}, commit=commit_wandb)
 
 
 def train_es_closed_loop(
@@ -88,7 +141,8 @@ def train_es_closed_loop(
     top_k: int = 5,
     popsize: int = int(4e1),
     num_eval_rollouts: int = int(1e3),
-    lrate_init: float = 1e-2,
+    lrate_init: float = 1e-3,
+    plot_every: int = 10,
 ):
     # Set the seed for reproducibility
     prng_key = jax.random.PRNGKey(0)
@@ -106,6 +160,10 @@ def train_es_closed_loop(
         key: (center - width / 2.0, center + width / 2.0)
         for key, (center, width) in param_ranges.items()
     }
+
+    # Also create a test env with full uncertainty
+    test_env = PopDownGymStateless.create_env()
+    rollout_test = lambda key, traj: rollout_closed_loop(key, test_env, traj)
 
     # Init wandb and save hyperparams
     wandb.init(
@@ -125,6 +183,10 @@ def train_es_closed_loop(
             "uncertainty_set": env.random_param_ranges,
         },
     )
+    save_path = os.path.join(
+        "tmp", "es", "closed_loop", f"uncertainty_{uncertainty_size:.2f}"
+    )
+    os.makedirs(save_path, exist_ok=True)
 
     # Define the fitness function
     fitness_single_rollout = lambda key, policy: rollout_closed_loop(
@@ -173,7 +235,7 @@ def train_es_closed_loop(
         maximize=True,
     )
     log = es_logging.initialize()
-    fit_shaper = es.FitnessShaper(centered_rank=True, w_decay=0.0, maximize=True)
+    fit_shaper = es.FitnessShaper(z_score=True, w_decay=0.0, maximize=True)
     prng_key, es_key = jax.random.split(prng_key)
     state = strategy.initialize(es_key)
 
@@ -196,6 +258,34 @@ def train_es_closed_loop(
         # Log
         log = es_logging.update(log, x, fitness)
         pbar.set_description(f"Performance: {log['log_top_1'][gen]:.3f}")
+
+        # Plot the top trajectory
+        if gen % plot_every == 0:
+            best_policy = jax.tree_map(
+                lambda x: x[0], one_device_reshaper.reshape(log["top_params"])
+            )
+            prng_key, prng_eval = jax.random.split(prng_key)
+            keys = jax.random.split(prng_eval, 50)
+            (
+                rewards_test,
+                states_test,
+                t_test,
+                reward_inputs_test,
+                _,
+                hit_goal_test,
+                actions_test,
+            ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_policy)
+
+            plot_test_set_trajectories(
+                t_test, reward_inputs_test, save_path, commit_wandb=False
+            )
+            plot_action_trajectory(
+                env, t_test, actions_test, save_path, commit_wandb=False
+            )
+            plot_hit_time_vs_reward(
+                t_test, hit_goal_test, rewards_test, save_path, commit_wandb=False
+            )
+
         wandb.log(
             {
                 "Top 1 Fitness": log["log_top_1"][gen],
@@ -215,7 +305,7 @@ def train_es_closed_loop(
     rollout_train = lambda key, policy: rollout_closed_loop(
         key, env, policy, steps=simulation_steps
     )
-    rewards_train, states_train, t_train, reward_inputs_train, _ = jax.vmap(
+    rewards_train, states_train, t_train, reward_inputs_train, _, _ = jax.vmap(
         rollout_train, in_axes=(0, None)
     )(keys, best_policy)
 
@@ -225,9 +315,14 @@ def train_es_closed_loop(
     rollout_test = lambda key, policy: rollout_closed_loop(
         key, test_env, policy, steps=simulation_steps
     )
-    rewards_test, states_test, t_test, reward_inputs_test, _ = jax.vmap(
-        rollout_test, in_axes=(0, None)
-    )(keys, best_policy)
+    (
+        rewards_test,
+        states_test,
+        t_test,
+        reward_inputs_test,
+        hit_goal_test,
+        actions_test,
+    ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_policy)
 
     # Save experiment parameters
     save_path = os.path.join(
@@ -279,13 +374,27 @@ def train_es_closed_loop(
     )
     wandb.save(os.path.join(save_path, "test_env_performance.eqx"))
 
+    # Plot the trajectories on the test set
+    plot_test_set_trajectories(t_test, reward_inputs_test, save_path, commit_wandb=True)
+
+    # Plot trajectory in unnormalized action space
+    plot_action_trajectory(env, t_test, actions_test, save_path, commit_wandb=True)
+
+    # Plot the distribution of hitting time vs reward
+    plot_hit_time_vs_reward(
+        t_test, hit_goal_test, rewards_test, save_path, commit_wandb=True
+    )
+
     # End the wandb run
     wandb.finish()
 
 
 if __name__ == "__main__":
     # Run a sweep over the uncertainty size
-    uncertainty_sizes = jnp.linspace(0.0, 1.0, 11)
+    uncertainty_sizes = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0]
+
+    # TODO only run one for debugging
+    uncertainty_sizes = [1.0]
 
     for uncertainty_size in uncertainty_sizes:
         train_es_closed_loop(uncertainty_size)
