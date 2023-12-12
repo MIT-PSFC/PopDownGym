@@ -17,7 +17,7 @@ contrax = { path = "contrax/", develop = true }
 debugpy = "1.6.7"
 black = "^23.7.0"
 wandb = "^0.15.4"
-plotly = "^5.16.1"
+plotly = "^5.18.0"
 stable-baselines3 = "2.0.0a10"
 tensorboard = "^2.14.0"
 urllib3 = "1.26.16"
