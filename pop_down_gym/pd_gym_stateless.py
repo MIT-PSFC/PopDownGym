@@ -81,7 +81,7 @@ class PopDownGymStateless:
 
         return initial_state
 
-    def sample_params(self, prng_key):
+    def sample_params(self, prng_key) -> dict[str, jnp.ndarray]:
         """
         Generate a random set of parameters.
 

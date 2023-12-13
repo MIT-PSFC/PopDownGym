@@ -89,11 +89,20 @@ class PDEnv(Env):
 
 
 class PDEnvAdj(Env):
-    def __init__(self, shift_ranges: dict = None, offset: dict = None, shift_mult: float = 1.0, limits: dict = None):
+    def __init__(
+        self,
+        shift_ranges: dict = None,
+        offset: dict = None,
+        shift_mult: float = 1.0,
+        limits: dict = None,
+        env_params: dict = None,
+    ):
         if shift_ranges is None:
             shift_ranges = {"Bv_dot_mag": 0.1, "beta_p": 0.1, "li": 1.0}
         if offset is None:
             offset = {}
+        if env_params is None:
+            env_params = {}
         self.pd = PopDownGymStateless.create_env()
         if limits is not None:
             logger.info("Overriding reward model limits:")
@@ -106,6 +115,7 @@ class PDEnvAdj(Env):
         self.shift_ranges = shift_ranges
         self.offset = offset
         self.shift_mult = shift_mult
+        self.env_params = env_params
 
     def step_env(self, key: PRNGKey, state: PDAdjState, action) -> StepOutput:
         obs_tree, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, action)
@@ -162,10 +172,16 @@ class PDEnvAdj(Env):
         shifts = {k: v * self.shift_ranges[k] for k, v in zip(self.shift_ranges.keys(), shifts_arr)}
         for k, v in self.offset.items():
             shifts[k] = shifts[k] + v
-        env_state = PDAdjState(info["time"], params, state, shifts)
 
         # Make the shift ranges observable. [-1, 1].
         obs = self.add_to_obs(obs, shifts)
+
+        for k, v in self.env_params.items():
+            assert k in params
+            logger.info("Overriding env param {:12}: {} -> {}".format(k, params[k], v))
+            params[k] = v
+
+        env_state = PDAdjState(info["time"], params, state, shifts)
 
         params_vec = self._params_to_obsvec(env_state.params)
         obs_priv = jnp.concatenate([obs, params_vec], axis=0)
