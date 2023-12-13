@@ -95,6 +95,7 @@ def main(pkl_path: pathlib.Path):
             # Set the limits.
             ax.autoscale_view()
             ax.set_ylim(ylims[label])
+            ax.set_xlim(0.0, 5.7)
 
             # Plot the limits.
             ymin, ymax = ax.get_ylim()
