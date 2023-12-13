@@ -29,7 +29,7 @@ def main():
         n_rows, n_cols = 2, 4
 
         figsize = 0.8 * np.array([n_cols * 3, n_rows * 2])
-        fig, axes2d = plt.subplots(n_rows, n_cols, figsize=figsize, layout="constrained", sharey=True)
+        fig, axes2d = plt.subplots(n_rows, n_cols, figsize=figsize, layout="constrained", sharey=True, dpi=400)
         axes = axes2d.flatten()
 
         style_mean = dict(color="C1", zorder=2)
@@ -61,6 +61,10 @@ def main():
             ax.set_xlabel(rew_label)
             ax.set_xlim(C_vals.min(), C_vals.max())
 
+            ax.xaxis.set_tick_params(labelsize=8)
+            ax.yaxis.set_tick_params(labelsize=8)
+            ax.set_facecolor("#F0F0F0")
+
         # [ax.set_ylabel("Time to goal (s)") for ax in axes2d[:, 0]]
         fig.supylabel("Time to goal (s)")
 
@@ -73,6 +77,7 @@ def main():
 
         fig_path = pathlib.Path(__file__).parent / "ppo_sens_{}.pdf".format(offset_type)
         fig.savefig(fig_path, bbox_inches="tight", pad_inches=5e-2)
+        fig.savefig(fig_path.with_suffix(".png"), bbox_inches="tight", pad_inches=5e-2)
         plt.close(fig)
 
 
