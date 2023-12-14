@@ -20,8 +20,6 @@ from tqdm import tqdm
 
 import wandb
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
-from scripts.es.train.es_open_loop import (plot_hit_time_vs_reward,
-                                           plot_test_set_trajectories)
 
 
 class MLP(eqx.Module):
@@ -36,7 +34,7 @@ class MLP(eqx.Module):
 
     def __call__(self, x):
         for layer in self.layers[:-1]:
-            x = jax.nn.relu(layer(x))
+            x = jax.nn.tanh(layer(x))
         return jax.nn.tanh(self.layers[-1](x))
 
 
@@ -90,7 +88,9 @@ def rollout_closed_loop(prng_key, env, policy, steps=100):
     return rewards.sum(), states, t, reward_inputs, rewards, hit_goal, action
 
 
-def plot_action_trajectory(env, t, action_trajectory, save_path=None, commit_wandb=False):
+def plot_action_trajectory(
+    env, t, action_trajectory, save_path=None, commit_wandb=False
+):
     action_lims = {
         "dIp_dt": [-3.0, -0.5],
         "dPaux_dt": [-5.0, 5.0],
@@ -127,17 +127,109 @@ def plot_action_trajectory(env, t, action_trajectory, save_path=None, commit_wan
         ax.axhspan(ymin, max(ymin, action_lims[label][0]), color="C0", alpha=0.2)
 
     if save_path is not None:
-        plt.savefig(os.path.join(save_path, "feedforward_trajectory.png"))
+        plt.savefig(os.path.join(save_path, "action_trajectory.png"))
 
     wandb.log({"Feedforward trajectory": fig}, commit=commit_wandb)
+
+
+def plot_test_set_trajectories(t, reward_inputs, save_path=None, commit_wandb=False):
+    constr_labels = PopDownGymStateless.constr_labels()
+    nconstr = len(constr_labels)
+    ylims = {
+        "Ip_MA": [1.2e00, 9.18e00],
+        "Bv_dot_mag": [5.14e-02, 3.30e-01],
+        "Wdot_mag": [-1.42e06, 4.93e07],
+        "beta_n": [1.25e-03, 1.17e-02],
+        "beta_p": [6.96e-02, 4.57e-01],
+        "li": [3.36e-01, 4.19e00],
+        "ng_frac": [2.30e-01, 7.83e-01],
+        "shafranov_coeff": [1.95, 4.05],
+        "iota95": [0.05, 0.25],
+    }
+    rew_bounds = {
+        "li": [2, 3],
+        "ng_frac": [0.5, 0.8],
+        "beta_n": [0.015, 0.028],
+        "beta_p": [0.25, 0.4],
+        "Bv_dot_mag": [0.2, 0.4],
+        "Wdot_mag": [20_000_000, 70_000_000],
+        "shafranov_coeff": [3.4, 3.6],
+        "iota95": [0.35, 0.45],
+    }
+    rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
+    constr_ub = rew_centers
+    Ip_MA_tgt = 2.0
+
+    figsize = np.array([6, 1.2 * nconstr])
+    fig, axes = plt.subplots(
+        nconstr, layout="constrained", figsize=figsize, sharex=True, dpi=350
+    )
+    for i, ax in enumerate(axes):
+        label = constr_labels[i]
+        bT_rew_input = reward_inputs[label]
+        ax.plot(t.T, bT_rew_input.T, color="C1", lw=0.5, alpha=0.4)
+        ax.set_ylabel(label, rotation=0, ha="right")
+
+        # Set the limits.
+        ax.autoscale_view()
+        ax.set_ylim(ylims[label])
+
+        # Plot the limits.
+        ymin, ymax = ax.get_ylim()
+        if label in constr_ub:
+            # Expand the ymax a bit.
+            yrange = ymax - ymin
+            ax.set_ylim(ymin - 0.1 * yrange, ymax + 0.1 * yrange)
+            ymin, ymax = ax.get_ylim()
+
+            ax.axhspan(min(ymax, constr_ub[label]), ymax, color="C0", alpha=0.2)
+
+        if label == "Ip_MA":
+            ax.axhspan(ymin, Ip_MA_tgt, color="C5", alpha=0.2)
+
+    if save_path is not None:
+        plt.savefig(os.path.join(save_path, "test_env_performance.png"))
+
+    wandb.log({"Test env trajectory": fig}, commit=commit_wandb)
+
+
+def plot_hit_time_vs_reward(t, hit_goal, rewards, save_path=None, commit_wandb=False):
+    episode_lengths = jnp.max(t, axis=-1)
+    hit_goal_at_episode_end = hit_goal[:, -1]
+    fig = plt.figure(figsize=(6, 6), dpi=350)
+    ax = fig.add_subplot(111)
+    ax.scatter(
+        episode_lengths[hit_goal_at_episode_end],
+        rewards[hit_goal_at_episode_end],
+        marker=".",
+        color="C0",
+        alpha=0.5,
+        label="Reached goal",
+    )
+    ax.scatter(
+        episode_lengths[~hit_goal_at_episode_end],
+        rewards[~hit_goal_at_episode_end],
+        marker=".",
+        color="C1",
+        alpha=0.5,
+        label="Did not reach goal",
+    )
+    ax.set_xlabel("Episode length (s)")
+    ax.set_ylabel("Reward")
+    ax.legend()
+
+    if save_path is not None:
+        plt.savefig(os.path.join(save_path, "episode_length_vs_reward.png"))
+
+    wandb.log({"Episode length vs reward": fig}, commit=commit_wandb)
 
 
 def train_es_closed_loop(
     uncertainty_size: float,
     hidden_dims: int = 512,
-    hidden_layers: int = 4,
+    hidden_layers: int = 2,
     simulation_steps: int = 100,
-    num_generations: int = 200,
+    num_generations: int = 1000,
     top_k: int = 5,
     popsize: int = int(4e1),
     num_eval_rollouts: int = int(1e3),
@@ -184,7 +276,11 @@ def train_es_closed_loop(
         },
     )
     save_path = os.path.join(
-        "tmp", "es", "closed_loop", f"uncertainty_{uncertainty_size:.2f}"
+        "tmp",
+        "es",
+        "closed_loop",
+        f"uncertainty_{uncertainty_size:.2f}",
+        f"lr_{lrate_init:.1e}",
     )
     os.makedirs(save_path, exist_ok=True)
 
@@ -257,7 +353,7 @@ def train_es_closed_loop(
 
         # Log
         log = es_logging.update(log, x, fitness)
-        pbar.set_description(f"Performance: {log['log_top_1'][gen]:.3f}")
+        pbar.set_description(f"Current gen top fitness: {log['log_gen_1'][gen]:.3f}")
 
         # Plot the top trajectory
         if gen % plot_every == 0:
@@ -305,7 +401,7 @@ def train_es_closed_loop(
     rollout_train = lambda key, policy: rollout_closed_loop(
         key, env, policy, steps=simulation_steps
     )
-    rewards_train, states_train, t_train, reward_inputs_train, _, _ = jax.vmap(
+    rewards_train, states_train, t_train, reward_inputs_train, _, _, _ = jax.vmap(
         rollout_train, in_axes=(0, None)
     )(keys, best_policy)
 
@@ -320,15 +416,12 @@ def train_es_closed_loop(
         states_test,
         t_test,
         reward_inputs_test,
+        _,
         hit_goal_test,
         actions_test,
     ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_policy)
 
     # Save experiment parameters
-    save_path = os.path.join(
-        "tmp", "es", "closed_loop", f"uncertainty_{uncertainty_size:.2f}"
-    )
-    os.makedirs(save_path, exist_ok=True)
     eqx.tree_serialise_leaves(
         os.path.join(save_path, "config.eqx"),
         {
