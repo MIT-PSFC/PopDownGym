@@ -229,11 +229,11 @@ def train_es_closed_loop(
     hidden_dims: int = 512,
     hidden_layers: int = 2,
     simulation_steps: int = 100,
-    num_generations: int = 1000,
+    num_generations: int = 100,
     top_k: int = 5,
     popsize: int = int(4e1),
     num_eval_rollouts: int = int(1e3),
-    lrate_init: float = 1e-3,
+    lrate_init: float = 1e-2,
     plot_every: int = 10,
 ):
     # Set the seed for reproducibility

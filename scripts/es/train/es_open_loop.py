@@ -16,6 +16,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.special import binom
 from tqdm import tqdm
 
 import wandb
@@ -41,6 +42,50 @@ class MLP(eqx.Module):
         return jax.nn.tanh(self.layers[-1](x))
 
 
+class Spline(eqx.Module):
+    """
+    A fixed-degree Bezier curve function of time.
+
+    Time is normalized to [0, 1]
+
+    args:
+        p: the array of control points for the Bezier curve
+    """
+
+    def __init__(self, key, degree, dimension):
+        # Generate some random initial control points
+        self.p = jax.random.normal(key, (degree, dimension))
+
+    @property
+    def n(self):
+        """Return the degree of this Bezier curve"""
+        return self.p.shape[0] - 1
+
+    @property
+    def i(self):
+        """Return the degree indices"""
+        return np.arange(self.n + 1)
+
+    @property
+    def coefficients(self):
+        """Return the degree indices"""
+        return binom(self.n, self.i)
+
+    @jax.jit
+    def __call__(self, t):
+        """
+        Return the point along the trajectory at the given time.
+        
+        Args:
+            t: the normalized time to evaluate the spline at (between 0 and 1)
+        """
+        # Bezier curves have an explicit form
+        # see https://en.wikipedia.org/wiki/B%C3%A9zier_curve
+        return jnp.sum(
+            self.coefficients * (1 - t) ** (self.n - self.i) * t**self.i * self.p.T,
+            axis=-1,
+        )
+
 def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
     """Simulate the trajectory in the environment."""
     # Sample random parameters and initial state
@@ -55,7 +100,7 @@ def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
         obs = jax.numpy.hstack((obs["continuous"], obs["Hmode"]))
 
         # Get the action
-        action = trajectory_fn(t.reshape(1))
+        action = trajectory_fn(t.reshape(1) / (steps * env.dt))
 
         # Step the environment
         obs, reward, terminated, _, info = env.step(t, params, state, action)
@@ -95,12 +140,14 @@ def train_es_open_loop(
     uncertainty_size: float,
     hidden_dims: int = 512,
     hidden_layers: int = 2,
+    spine_degree: int = 5,
+    use_spline=True,
     simulation_steps: int = 100,
-    num_generations: int = 1000,
+    num_generations: int = 100,
     top_k: int = 5,
     popsize: int = int(4e1),
     num_eval_rollouts: int = int(1e3),
-    lrate_init: float = 1e-3,
+    lrate_init: float = 1e-2,
     plot_every: int = 10,
 ):
     # Set the seed for reproducibility
@@ -147,7 +194,7 @@ def train_es_open_loop(
     save_path = os.path.join(
         "tmp",
         "es",
-        "open_loop",
+        "open_loop_spline",
         f"uncertainty_{uncertainty_size:.2f}",
         f"lr_{lrate_init:.1e}",
     )
@@ -178,13 +225,16 @@ def train_es_open_loop(
                 in_axes=(None, 0),
             )(key, population)
 
-    # Create an MLP to represent the trajectory
     prng_key, policy_key = jax.random.split(prng_key)
-    mlp = MLP(policy_key, hidden_layers, hidden_dims, env.n_actions)
+    if use_spline:
+        initial_traj = Spline(policy_key, spine_degree, env.n_actions)
+    else:
+        # Create an MLP to represent the trajectory
+        initial_traj = MLP(policy_key, hidden_layers, hidden_dims, env.n_actions)
 
     # Set up ES
-    param_reshaper = es.ParameterReshaper(mlp)
-    one_device_reshaper = es.ParameterReshaper(mlp, n_devices=1)
+    param_reshaper = es.ParameterReshaper(initial_traj)
+    one_device_reshaper = es.ParameterReshaper(initial_traj, n_devices=1)
     strategy = es.OpenES(
         popsize=popsize,
         num_dims=param_reshaper.total_params,
