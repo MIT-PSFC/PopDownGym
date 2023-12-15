@@ -48,9 +48,6 @@ class PopDownGymStateless:
         self.action_space = jnp.vstack(
             (-1.0 * np.ones(len(self.action_ranges)), np.ones(len(self.action_ranges)))
         )
-        
-        print(repr(list(self.action_ranges.keys())))
-        exit(0)
 
         # Declare the normalized observation space.
         self.observation_space = {
