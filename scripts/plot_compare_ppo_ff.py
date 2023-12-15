@@ -92,6 +92,7 @@ def main(pkl_path: pathlib.Path):
 
     for jj, (k, data) in enumerate(data_dict.items()):
         bT_valid_mask, bT_state, bT_control, bT_rew, bT_info = data
+        assert bT_control.ndim == 3
         bT_rew_inputs = bT_info["reward_inputs"]
 
         axes[0, jj].set_title(k)
@@ -103,8 +104,9 @@ def main(pkl_path: pathlib.Path):
                 b_segs = get_segs(bT_rew_input, bT_valid_mask, dt)
             else:
                 label = control_labels[ii - nconstr]
-                T_control = bT_control
-                bT_control_ii = T_control[None, :, ii - nconstr]
+                # T_control = bT_control
+                # bT_control_ii = T_control[None, :, ii - nconstr]
+                bT_control_ii = bT_control[:, :, ii - nconstr]
                 b_segs = get_segs(bT_control_ii, bT_valid_mask[[0]], dt)
             col = LineCollection(b_segs, color="C1", lw=0.5, alpha=0.4)
             ax.add_collection(col)
