@@ -82,11 +82,13 @@ def main(pkl_path: pathlib.Path):
 
     # Plot the constraints.
     constr_labels = PopDownGymStateless.constr_labels()
+    control_labels = PopDownGymStateless.action_labels()
     nconstr = len(constr_labels)
-    ncontrol =
+    ncontrol = len(control_labels)
 
-    figsize = np.array([4 * n_runs, 1.2 * nconstr])
-    fig, axes = plt.subplots(nconstr, n_runs, figsize=figsize, layout="constrained", sharex=True)
+    nrows = nconstr + ncontrol
+    figsize = np.array([4 * n_runs, 1.2 * nrows])
+    fig, axes = plt.subplots(nrows, n_runs, figsize=figsize, layout="constrained", sharex=True)
 
     for jj, (k, data) in enumerate(data_dict.items()):
         bT_valid_mask, bT_state, bT_control, bT_rew, bT_info = data
@@ -97,8 +99,13 @@ def main(pkl_path: pathlib.Path):
         for ii, ax in enumerate(axes[:, jj]):
             label = constr_labels[ii]
 
-            bT_rew_input = bT_rew_inputs[label]
-            b_segs = get_segs(bT_rew_input, bT_valid_mask, dt)
+            if ii < nconstr:
+                bT_rew_input = bT_rew_inputs[label]
+                b_segs = get_segs(bT_rew_input, bT_valid_mask, dt)
+            else:
+                label = control_labels[ii - nconstr]
+                bT_control_ii = bT_control[:, :, ii - nconstr]
+                b_segs = get_segs(bT_control_ii, bT_valid_mask, dt)
             col = LineCollection(b_segs, color="C1", lw=0.5, alpha=0.4)
             ax.add_collection(col)
 
@@ -108,22 +115,23 @@ def main(pkl_path: pathlib.Path):
     # Plot the limits.
     for jj, (k, data) in enumerate(data_dict.items()):
         for ii, ax in enumerate(axes[:, jj]):
-            label = constr_labels[ii]
-            ax.set_ylim(ylims[label])
-            ax.set_xlim(-0.02, T_ppo * dt + 0.02)
-            ymin, ymax = ax.get_ylim()
-
-            if label in constr_ub:
-                # Expand the ymax a bit.
-                yrange = ymax - ymin
-                ax.set_ylim(ymin - 0.1 * yrange, ymax + 0.1 * yrange)
+            if ii < nconstr:
+                label = constr_labels[ii]
+                ax.set_ylim(ylims[label])
+                ax.set_xlim(-0.02, T_ppo * dt + 0.02)
                 ymin, ymax = ax.get_ylim()
 
-                # if ymax > constr_ub[label]:
-                ax.axhspan(min(ymax, constr_ub[label]), ymax, color="C0", alpha=0.2)
+                if label in constr_ub:
+                    # Expand the ymax a bit.
+                    yrange = ymax - ymin
+                    ax.set_ylim(ymin - 0.1 * yrange, ymax + 0.1 * yrange)
+                    ymin, ymax = ax.get_ylim()
 
-            if label == "Ip_MA":
-                ax.axhspan(ymin, Ip_MA_tgt, color="C5", alpha=0.2)
+                    # if ymax > constr_ub[label]:
+                    ax.axhspan(min(ymax, constr_ub[label]), ymax, color="C0", alpha=0.2)
+
+                if label == "Ip_MA":
+                    ax.axhspan(ymin, Ip_MA_tgt, color="C5", alpha=0.2)
 
     fig_path = "compare_ff.pdf"
     fig.savefig(fig_path, bbox_inches="tight")
