@@ -386,6 +386,9 @@ class PopDownGymStateless:
         """
         unnormalized_action = self.dictify_and_unnormalize_action(action)
         new_state, reward_inputs = self._step(state, unnormalized_action, params)
+
+
+
         reward, reward_terms = self.reward_model.reward(
             reward_inputs, unnormalized_action
         )
@@ -398,9 +401,13 @@ class PopDownGymStateless:
         terminated = jnp.logical_or(truncated, out_of_bounds)
         terminated = jnp.logical_or(terminated, hit_goal)
 
+        """
+        TODO(allenw): If we go out of bounds, we want to not have the new out of bounds
+        state corrupt the results. Right now, this is handeled in a pretty hacky way.
+        """
         info = {
             "time": next_time,
-            "state": new_state,
+            "state": jax.lax.cond(out_of_bounds, lambda _: state, lambda _: new_state, operand=None),
             "action": unnormalized_action,
             "reward_inputs": reward_inputs,
             "reward_terms": reward_terms,
@@ -409,7 +416,17 @@ class PopDownGymStateless:
             "out_of_bounds": out_of_bounds,
         }
 
-        return obs, reward, terminated, truncated, info
+        obs_out = jax.lax.cond(
+            out_of_bounds,
+            lambda _: self.state_to_obs(state),
+            lambda _: obs,
+            operand=None,
+        )
+        reward = jnp.nan_to_num(reward, nan=0.0)
+        info = jax.tree_map(lambda x: jnp.nan_to_num(x, nan=0.0), info)
+
+
+        return obs_out, reward, terminated, truncated, info
 
     def state_to_obs(self, state: PyTree[float]) -> PyTree[float]:
         """Convert the state to an observation. This problem provides full observability, but
