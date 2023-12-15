@@ -127,6 +127,7 @@ def main(ckpt_dir: pathlib.Path):
     bT_u_q95 = get_utraj_quantile(data_eval.bT_valid_mask, data_eval.bT_rew, data_eval.bT_control, q=0.95)
     bT_u_cvar50 = get_utraj_cvar(data_eval.bT_valid_mask, data_eval.bT_rew, data_eval.bT_control, q=0.50)
     bT_u_cvar95 = get_utraj_cvar(data_eval.bT_valid_mask, data_eval.bT_rew, data_eval.bT_control, q=0.95)
+    bT_u_cvar99 = get_utraj_cvar(data_eval.bT_valid_mask, data_eval.bT_rew, data_eval.bT_control, q=0.99)
 
     bT_controls = {
         "mean": bT_u_mean,
@@ -134,6 +135,7 @@ def main(ckpt_dir: pathlib.Path):
         "q95": bT_u_q95,
         "cvar50": bT_u_cvar50,
         "cvar95": bT_u_cvar95,
+        "cvar99": bT_u_cvar99,
     }
 
     @jax.jit
