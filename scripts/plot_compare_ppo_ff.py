@@ -1,4 +1,5 @@
 import copy
+import einops as ei
 import pathlib
 import pickle
 
@@ -92,7 +93,8 @@ def main(pkl_path: pathlib.Path):
 
     for jj, (k, data) in enumerate(data_dict.items()):
         bT_valid_mask, bT_state, bT_control, bT_rew, bT_info = data
-        assert bT_control.ndim == 3
+        if bT_control.ndim == 2:
+            bT_control = ei.repeat(bT_control, "T nu -> b T nu", b=len(bT_rew))
         bT_rew_inputs = bT_info["reward_inputs"]
 
         axes[0, jj].set_title(k)
