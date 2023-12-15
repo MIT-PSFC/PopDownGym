@@ -10,8 +10,8 @@ packages = [{include = "pop_down_gym"}]
 python = ">=3.9, <3.10"
 scipy = "^1.10.1"
 pytest = "^7.4.0"
-jaxlib = {version = "^0.4.14+cuda12.cudnn89", source = "jax_cuda"}
-jax = {extras = ["cuda12-pip"], version = "^0.4.20"}
+jaxlib = {version = "^0.4.16+cuda12.cudnn89", source = "jax_cuda"}
+jax = {extras = ["cuda12-pip"], version = "^0.4.16"}
 gymnasium = "0.28.1"
 contrax = { path = "contrax/", develop = true }
 debugpy = "1.6.7"
