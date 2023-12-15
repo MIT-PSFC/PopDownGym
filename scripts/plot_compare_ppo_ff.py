@@ -83,6 +83,7 @@ def main(pkl_path: pathlib.Path):
     # Plot the constraints.
     constr_labels = PopDownGymStateless.constr_labels()
     nconstr = len(constr_labels)
+    ncontrol =
 
     figsize = np.array([4 * n_runs, 1.2 * nconstr])
     fig, axes = plt.subplots(nconstr, n_runs, figsize=figsize, layout="constrained", sharex=True)

@@ -49,6 +49,9 @@ class PopDownGymStateless:
             (-1.0 * np.ones(len(self.action_ranges)), np.ones(len(self.action_ranges)))
         )
 
+        print(repr(list(self.action_ranges.keys())))
+        exit(0)
+
         # Declare the normalized observation space.
         self.observation_space = {
             "continuous": jnp.vstack(
@@ -503,3 +506,9 @@ class PopDownGymStateless:
             "iota95",
         ]
         return constr_labels
+
+    @staticmethod
+    def action_labels() -> list[str]:
+        action_labels = [
+            ""
+        ]
