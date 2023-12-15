@@ -103,8 +103,9 @@ def main(pkl_path: pathlib.Path):
                 b_segs = get_segs(bT_rew_input, bT_valid_mask, dt)
             else:
                 label = control_labels[ii - nconstr]
-                bT_control_ii = bT_control[:, :, ii - nconstr]
-                b_segs = get_segs(bT_control_ii, bT_valid_mask, dt)
+                T_control = bT_control
+                bT_control_ii = T_control[None, :, ii - nconstr]
+                b_segs = get_segs(bT_control_ii, bT_valid_mask[[0]], dt)
             col = LineCollection(b_segs, color="C1", lw=0.5, alpha=0.4)
             ax.add_collection(col)
 
