@@ -1,16 +1,16 @@
 import os
 from functools import partial
-from typing import Tuple, Dict
-from jaxtyping import PyTree
+from typing import Dict, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import yaml
+from jaxtyping import PyTree
 
+import pop_down_gym
 import pop_down_gym.physics as physics
 from contrax.simulate import SimFFControl
-import pop_down_gym
 from pop_down_gym.model import Model
 from pop_down_gym.reward import RewardModel
 from pop_down_gym.utils import remap_range
@@ -105,7 +105,9 @@ class PopDownGymStateless:
         # The number of observations is the number of continuous states.
         # Plus the H-Mode observation.
         cont_states = len(self.cont_state_ranges)
-        non_cont_obs = {k: v for k, v in self.observation_space.items() if k != "continuous"}
+        non_cont_obs = {
+            k: v for k, v in self.observation_space.items() if k != "continuous"
+        }
         return cont_states + len(non_cont_obs)
 
     @property
@@ -178,6 +180,23 @@ class PopDownGymStateless:
 
         out_of_bounds = jnp.logical_not(jnp.all(each_obs_in_bounds))
         return out_of_bounds
+
+    def check_constraint_violation(self, reward_terms):
+        """Check if the given reward terms violate any constraints"""
+        limit_terms = jnp.array(
+            [
+                reward_terms["li"],
+                reward_terms["ng_frac"],
+                reward_terms["beta_n"],
+                reward_terms["beta_p"],
+                reward_terms["Bv_dot_mag"],
+                reward_terms["Wdot_mag"],
+                reward_terms["shafranov_coeff"],
+                reward_terms["iota95"],
+            ]
+        )
+        constraint_violation = jnp.any(limit_terms < 0.0)
+        return constraint_violation
 
     @partial(jax.jit, static_argnums=(0,))
     def _step(
@@ -397,6 +416,11 @@ class PopDownGymStateless:
         terminated = jnp.logical_or(truncated, out_of_bounds)
         terminated = jnp.logical_or(terminated, hit_goal)
 
+        # # If we're using a sparse reward, then stop the episode on constraint violation
+        # if self.reward_model.sparse:
+        #     constraint_violation = self.check_constraint_violation(reward_terms)
+        #     terminated = jnp.logical_or(terminated, constraint_violation)
+
         info = {
             "time": next_time,
             "state": new_state,
@@ -438,7 +462,7 @@ class PopDownGymStateless:
         assert obs["Hmode"].dtype == jnp.int32
         obs_cts = obs["continuous"]
         obs_hmode = jnp.where(obs["Hmode"] == 1, 1.0, -1.0)
-        
+
         assert obs_cts.shape == (len(self.CONT_STATES),)
         assert obs_hmode.shape == tuple()
         obs = jnp.concatenate([obs_cts, obs_hmode[None]], axis=0)

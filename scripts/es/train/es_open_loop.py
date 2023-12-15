@@ -146,7 +146,7 @@ def train_es_open_loop(
     hidden_layers: int = 2,
     spine_degree: int = 10,
     use_spline=True,
-    simulation_steps: int = 100,
+    simulation_steps: int = 150,
     num_generations: int = 500,
     top_k: int = 5,
     popsize: int = 256,
@@ -180,7 +180,7 @@ def train_es_open_loop(
     # Init wandb and save hyperparams
     wandb.init(
         project="popdown",
-        name=f"es-open-loop-hittime-{'spline' if use_spline else 'mlp'}",
+        name=f"es-open-loop-sparse-noterminate-{'spline' if use_spline else 'mlp'}",
         config={
             "hidden_dims": hidden_dims,
             "hidden_layers": hidden_layers,
@@ -200,7 +200,7 @@ def train_es_open_loop(
     save_path = os.path.join(
         "tmp",
         "es",
-        f"open_loop_hittime_{'spline' if use_spline else 'mlp'}",
+        f"open_loop_sparse-noterminate_{'spline' if use_spline else 'mlp'}",
         f"uncertainty_{uncertainty_size:.2f}",
         f"lr_{lrate_init:.1e}",
     )

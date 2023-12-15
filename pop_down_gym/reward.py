@@ -22,8 +22,33 @@ class RewardModel:
         self.limits = reward_params["limits"]
         self.barrier = reward_params["barrier"]
         self.ip_ma = reward_params["ip_ma"]
+        self.sparse = reward_params["sparse"]
 
     def reward(self, reward_inputs, action):
+        if self.sparse:
+            return self.sparse_reward(reward_inputs, action)
+        else:
+            return self.dense_reward(reward_inputs, action)
+
+    def sparse_reward(self, reward_inputs, action):
+        hit_goal = reward_inputs["Ip_MA"] <= self.ip_ma["target"]
+        reward_terms = {
+            constraint: jax.lax.cond(
+                reward_inputs[constraint] > self.limits[constraint],
+                lambda _: self.params["hit_barrier_reward"],
+                lambda _: 0.0,
+                None,
+            ) for constraint in self.limits
+        }
+        reward_terms["Ip"] = jnp.array(0.0)
+        reward_terms["hit_goal_reward"] = jax.lax.cond(
+            hit_goal, lambda _: self.params["hit_goal_reward"], lambda _: 0.0, None
+        )
+
+        reward = jax.tree_util.tree_reduce(lambda x, y: x + y, reward_terms, 0.0)
+        return reward, reward_terms
+
+    def dense_reward(self, reward_inputs, action):
         reward = 0.0
         hit_goal = reward_inputs["Ip_MA"] <= self.ip_ma["target"]
         reward_terms = {
