@@ -173,6 +173,21 @@ class Collector(struct.PyTreeNode):
         bT_state, bT_outs, bT_control, bT_misc = jax.vmap(ft.partial(self.rollout_eval_single, get_pol))(b_keys)
         return bT_state, bT_outs, bT_control, bT_misc
 
+    def rollout_ff(self, T_control: TControl) -> tuple[BTState, StepOutput]:
+        key0 = jr.PRNGKey(314159)
+        b_keys = jr.split(key0, self.cfg.n_env_eval)
+        bT_state, bT_outs = jax.vmap(self.rollout_ff_single, in_axes=(0, None))(b_keys, T_control)
+        return bT_state, bT_outs
+
+    def rollout_ff_single(self, key: PRNGKey, T_control: TControl):
+        def body(state, control):
+            step_out = self.env.step_autoreset(key, state, control)
+            return step_out.state, (state, step_out)
+
+        _, _, state_init = self.env.reset(key)
+        _, (T_state, T_outs) = lax.scan(body, state_init, T_control, length=len(T_control))
+        return T_state, T_outs
+
 
 class PPOBatch(NamedTuple):
     obs: Obs
