@@ -97,9 +97,8 @@ def main(pkl_path: pathlib.Path):
         axes[0, jj].set_title(k)
 
         for ii, ax in enumerate(axes[:, jj]):
-            label = constr_labels[ii]
-
             if ii < nconstr:
+                label = constr_labels[ii]
                 bT_rew_input = bT_rew_inputs[label]
                 b_segs = get_segs(bT_rew_input, bT_valid_mask, dt)
             else:
