@@ -51,6 +51,7 @@ class Spline(eqx.Module):
     args:
         p: the array of control points for the Bezier curve
     """
+    p: jax.Array
 
     def __init__(self, key, degree, dimension):
         # Generate some random initial control points
@@ -81,10 +82,13 @@ class Spline(eqx.Module):
         """
         # Bezier curves have an explicit form
         # see https://en.wikipedia.org/wiki/B%C3%A9zier_curve
-        return jnp.sum(
+        y = jnp.sum(
             self.coefficients * (1 - t) ** (self.n - self.i) * t**self.i * self.p.T,
             axis=-1,
         )
+
+        # Clamp
+        return jax.nn.tanh(y)
 
 def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
     """Simulate the trajectory in the environment."""
@@ -112,7 +116,7 @@ def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
         next_time = jax.lax.cond(terminated, lambda _: t, lambda _: info["time"], None)
 
         # If we've already terminated (last step), don't update the reward
-        reward = jax.lax.cond(done, lambda _: 0.0, lambda _: reward, None)
+        # reward = jax.lax.cond(done, lambda _: 0.0, lambda _: reward, None)
         done = jnp.logical_or(done, terminated)
 
         # prepare the carry for the next iteration
@@ -133,21 +137,21 @@ def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
         scan_step, (initial_state, initial_obs, 0.0, False), None, length=steps
     )
 
-    return rewards.sum(), states, t, reward_inputs, rewards, hit_goal, actions
+    return rewards.mean(), states, t, reward_inputs, rewards, hit_goal, actions
 
 
 def train_es_open_loop(
     uncertainty_size: float,
     hidden_dims: int = 512,
     hidden_layers: int = 2,
-    spine_degree: int = 5,
+    spine_degree: int = 10,
     use_spline=True,
     simulation_steps: int = 100,
-    num_generations: int = 100,
+    num_generations: int = 500,
     top_k: int = 5,
-    popsize: int = int(4e1),
-    num_eval_rollouts: int = int(1e3),
-    lrate_init: float = 1e-2,
+    popsize: int = 256,
+    num_eval_rollouts: int = int(1e2),
+    lrate_init: float = 0.1,
     plot_every: int = 10,
 ):
     # Set the seed for reproducibility
@@ -176,10 +180,12 @@ def train_es_open_loop(
     # Init wandb and save hyperparams
     wandb.init(
         project="popdown",
-        name="es-open-loop",
+        name=f"es-open-loop-hittime-{'spline' if use_spline else 'mlp'}",
         config={
             "hidden_dims": hidden_dims,
             "hidden_layers": hidden_layers,
+            "spine_degree": spine_degree,
+            "use_spline": use_spline,
             "simulation_steps": simulation_steps,
             "num_generations": num_generations,
             "top_k": top_k,
@@ -194,7 +200,7 @@ def train_es_open_loop(
     save_path = os.path.join(
         "tmp",
         "es",
-        "open_loop_spline",
+        f"open_loop_hittime_{'spline' if use_spline else 'mlp'}",
         f"uncertainty_{uncertainty_size:.2f}",
         f"lr_{lrate_init:.1e}",
     )
@@ -240,6 +246,8 @@ def train_es_open_loop(
         num_dims=param_reshaper.total_params,
         opt_name="adam",
         lrate_init=lrate_init,
+        lrate_decay=0.99,
+        lrate_limit=1e-3,
     )
     es_logging = es.ESLog(
         param_reshaper.total_params,
@@ -248,7 +256,7 @@ def train_es_open_loop(
         maximize=True,
     )
     log = es_logging.initialize()
-    fit_shaper = es.FitnessShaper(z_score=True, w_decay=0.0, maximize=True)
+    fit_shaper = es.FitnessShaper(centered_rank=True, w_decay=0.0, maximize=True)
     prng_key, es_key = jax.random.split(prng_key)
     state = strategy.initialize(es_key)
 
