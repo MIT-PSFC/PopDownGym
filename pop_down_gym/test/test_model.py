@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from tqdm import tqdm
 
-from contrax.simulate import SimFFControl
+from contrax.simulate import SimFullObs
 from pop_down_gym.model import Model
 
 
@@ -111,7 +111,3 @@ def benchmark_model_call(num_trials: int = 100):
     print(f"Benchmarking Model.__call__ with {num_trials} trials")
     print(f"Without jit: {np.mean(no_jit_times)} +/- {np.std(no_jit_times)}")
     print(f"With jit: {np.mean(jit_times)} +/- {np.std(jit_times)}")
-
-
-if __name__ == "__main__":
-    test_simulate()

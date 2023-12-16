@@ -9,7 +9,7 @@ import numpy as np
 import yaml
 
 import pop_down_gym.physics as physics
-from contrax.simulate import SimFFControl
+from contrax.simulate import SimFullObs
 import pop_down_gym
 from pop_down_gym.model import Model
 from pop_down_gym.reward import RewardModel
@@ -37,7 +37,7 @@ class PopDownGymStateless:
         self.time_limit = cfg["time_limit"]
 
         # Initialize the simulator.
-        self.simulator = SimFFControl(
+        self.simulator = SimFullObs(
             model, dt0=cfg["dt"] / 5.0
         )  # Do 5 steps per gym dt.
         self.reward_model = RewardModel(cfg["reward"])
@@ -159,9 +159,10 @@ class PopDownGymStateless:
         """Check if the given observations are in bounds or not"""
 
         def in_bound(i):
+            # Note: if the observation is nan, then it is out of bounds.
             return jnp.logical_and(
                 obs["continuous"][i] >= self.observation_space["continuous"][0][i],
-                obs["continuous"][i] <= self.observation_space["continuous"][1][i],
+                obs["continuous"][i] <= self.observation_space["continuous"][1][i]
             )
 
         continuous_obs_in_bounds = jax.tree_map(
@@ -217,10 +218,10 @@ class PopDownGymStateless:
             "prad_mult": random_params["prad_mult"],
         }
 
-        # SimFFControl needs controls at all time steps in "ts".
+        # SimFullObs needs controls at all time steps in "ts".
         # Let's just assume a zero-order-hold, so constant action over the simulation step.
         controls = jax.tree_map(lambda x: jnp.repeat(x, 2), action)
-        res = self.simulator.simulate(ts, initial_state, controls, params)
+        res = self.simulator.simulate(ts, initial_state, controls, params=params)
 
         # Evaluate the model at the first and last time steps in debug mode to get info.
         ys0 = jax.tree_map(lambda x: x[0], res.ys)

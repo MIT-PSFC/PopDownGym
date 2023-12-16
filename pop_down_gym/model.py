@@ -8,7 +8,7 @@ from pop_down_gym import constants
 from pop_down_gym.geometry import Geometry
 from pop_down_gym.profiles import ProfileBases
 from contrax.examples.plasma.li_ip.models import RomeroNNV
-from contrax.simulate import SimFFControl
+from contrax.simulate import SimFullObs
 
 from pop_down_gym.load_data import load_data
 
@@ -17,6 +17,8 @@ class Model:
     hmode_prof_basis: ProfileBases
     lmode_prof_basis: ProfileBases
     li_model: RomeroNNV
+    tau_e_scaling: physics.TauEScaling
+
 
     def __init__(
         self,
@@ -31,6 +33,7 @@ class Model:
         self.hmode_prof_basis = hmode_prof_bases
         self.lmode_prof_basis = lmode_prof_bases
         self.shot_constants = shot_constants
+        self.tau_e_scaling = physics.TauEScaling()
 
     def __call__(self, state, control, params, debug=False):
         """
@@ -125,7 +128,7 @@ class Model:
         )
         Ptot = Palpha + Pohm + 1e6 * state["Paux"] - params["prad_mult"] * Prad
 
-        tei = physics.TauEInput(
+        tei = physics.TauEScaling.InputData(
             R0=self.shot_constants.R0,
             BPhi0=self.shot_constants.Bphi0,
             H=params["Hfactor"],
@@ -135,9 +138,10 @@ class Model:
             a=aminor,
             Ip_MA=state["Ip_MA"],
             Psol=1e-6 * (Ptot),
+            Hmode=params["Hmode"],
         )
 
-        taue = jnp.where(params["Hmode"], tei.ipb98(), tei.ipb89())
+        taue = self.tau_e_scaling(tei)
 
         Wdot = -state["Wth"] / taue + Ptot
 
@@ -205,8 +209,6 @@ class Model:
             ds_geom.kappa_a.values.squeeze(),
             ds_geom.Vp.values.squeeze(),
         )
-
-        #
         hmode = ds["te"].sel(rho=0.95, method="nearest") > 3000
         ds["Hmode"] = hmode.drop_vars("rho")  #
         hmode_data = ds.where(ds["Hmode"], drop=True)
@@ -225,7 +227,7 @@ class Model:
                             activation=jax.nn.softplus,
                         ),
                     )
-        li_ip_sim = SimFFControl(romero_nnv, dt0=0.01)
+        li_ip_sim = SimFullObs(romero_nnv, dt0=0.01)
         li_ip_sim = eqx.tree_deserialise_leaves(
             f"{pop_down_gym.ROOT_DIR}/../contrax/contrax/examples/plasma/models/romero_nnv.eqx",
             li_ip_sim,

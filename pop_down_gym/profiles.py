@@ -76,6 +76,11 @@ class SimpleProfileBasis(eqx.Module):
         self.rhogauss = rhogauss
         self.wgauss = wgauss
 
+    def trainable_params_filter_spec(self):
+        def filter_spec(x):
+            return x is self.v or x is self.b
+        return filter_spec
+        
     def volume_average(self, profile: jnp.ndarray, Vp: jnp.ndarray) -> float:
         """Compute the volume average of a profile.
 
@@ -165,6 +170,17 @@ class ProfileBases(eqx.Module):
         assert (self.Te_basis.wgauss == self.ne_basis.wgauss).all()
         assert (self.Te_basis.wgauss == self.ni_basis.wgauss).all()
 
+    def trainable_params_filter_spec(self):
+        def filter_spec(x):
+            funcs = [
+                self.Te_basis.trainable_params_filter_spec(),
+                self.Ti_basis.trainable_params_filter_spec(),
+                self.ne_basis.trainable_params_filter_spec(),
+                self.ni_basis.trainable_params_filter_spec(),
+            ]
+            return any([f(x) for f in funcs])
+        return filter_spec
+            
     @property
     def rhogauss(self):
         return self.Te_basis.rhogauss
