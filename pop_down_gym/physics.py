@@ -308,11 +308,6 @@ def betas_to_beta_n(
     betan = beta * a * B0 / Ip_MA
     return betan
 
-
-def replace_nan_warn_and_sum(q):
-    return jnp.sum(jnp.nan_to_num(q, nan=0.0))
-
-
 def volume_integral(
     quantity: jnp.ndarray, Vp: jnp.ndarray, wgauss: jnp.ndarray
 ) -> float:
@@ -327,12 +322,7 @@ def volume_integral(
         float: integrated quantity.
     """
     product = jnp.multiply(wgauss, jnp.multiply(quantity, Vp))
-    out = jax.lax.cond(
-        jnp.any(jnp.isnan(product)),
-        lambda q: replace_nan_warn_and_sum(q),
-        lambda q: jnp.sum(q),
-        product,
-    )
+    out = jnp.sum(product)
     return out
 
 
