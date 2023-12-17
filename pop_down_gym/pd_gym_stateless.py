@@ -422,7 +422,7 @@ class PopDownGymStateless:
             lambda _: obs,
             operand=None,
         )
-        reward = jnp.nan_to_num(reward, nan=0.0)
+        reward = jnp.nan_to_num(reward, nan=self.reward_model.params["oob_reward"])
         info = jax.tree_map(lambda x: jnp.nan_to_num(x, nan=0.0), info)
 
 
