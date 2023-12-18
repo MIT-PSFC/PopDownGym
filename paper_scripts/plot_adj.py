@@ -3,6 +3,7 @@ import pickle
 
 import ipdb
 import matplotlib.pyplot as plt
+import matplotlib.transforms as transforms
 import numpy as np
 import tqdm
 import typer
@@ -57,7 +58,7 @@ def main(pkl_path: pathlib.Path):
     figsize *= target_width / figsize[0]
     fig, axes = plt.subplots(nconstr, 2, figsize=figsize, width_ratios=width_ratios, layout="constrained", sharex="col")
 
-    fig.get_layout_engine().set(wspace=0.05)
+    fig.get_layout_engine().set(wspace=0.1)
 
     # Hide the constraint ax for li.
     axes[0, 1].set_visible(False)
@@ -110,10 +111,17 @@ def main(pkl_path: pathlib.Path):
         rect = plt.Rectangle((0, val), 1, rew_ub - val, color="C0", alpha=constr_alpha)
         ax.add_patch(rect)
 
+    # axes[1, 1].set_title("Conditioned\nConstraints", fontsize=12)
+    title = "Conditioned\nConstraints"
+    offset = transforms.ScaledTranslation(-4 / 72, 7 / 72, fig.dpi_scale_trans)
+    trans = transforms.ScaledTranslation(0.5, 1.0, axes[1, 1].transAxes) + offset
+    fig.text(0.0, 0.0, title, transform=trans, ha="center", va="bottom", color="#555555", fontsize=12)
+
     axes[-1, 0].set_xlim(0, T_max * dt)
-    axes[-1, 0].set_xlabel("Time (s)")
+    txt: plt.Text = axes[-1, 0].set_xlabel("Time (s)")
+    print("fontsize: ", txt.get_fontsize())
     fig.align_ylabels(axes[:, 0])
-    fig.savefig(plot_dir / "test_style.pdf")
+    fig.savefig(plot_dir / "test_style.pdf", bbox_inches="tight")
 
 
 if __name__ == "__main__":

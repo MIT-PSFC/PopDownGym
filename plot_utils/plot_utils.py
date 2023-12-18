@@ -51,8 +51,8 @@ def setup_nature_style():
 def get_constr_labels_mathtext():
     return [
         r"$I_p$",
-        r"$\frac{d}{dt} B_v\ (T/s)$",
-        r"$\frac{d}{dt} W\ (J/s)$",
+        r"$\frac{d}{dt} B_v\ \mathrm{(T/s)}$",
+        r"$\frac{d}{dt} W\ \mathrm{(J/s)}$",
         r"$\beta_n$",
         r"$\beta_p$",
         r"$l_i$",
