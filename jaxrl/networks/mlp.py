@@ -1,6 +1,8 @@
 import flax.linen as nn
 from flax.linen import initializers
 
+from typing import Union
+
 from jaxrl.networks.network_utils import ActFn, HidSizes, default_nn_init, scaled_init
 from jaxrl.utils.iter_utils import signal_last_enumerate
 from jaxrl.utils.jax_types import AnyFloat
@@ -11,7 +13,7 @@ class MLP(nn.Module):
     act: ActFn = nn.relu
     use_layernorm: bool = False
     act_final: bool = True
-    scale_final: float | None = None
+    scale_final: Union[float, None] = None
 
     @nn.compact
     def __call__(self, x: AnyFloat, apply_dropout: bool = False) -> AnyFloat:

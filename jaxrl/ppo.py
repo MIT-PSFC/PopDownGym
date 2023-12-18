@@ -1,5 +1,5 @@
 import functools as ft
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, Union
 
 import jax
 import jax.lax as lax
@@ -63,7 +63,7 @@ class PPOCfg:
     pol_lr: float
     val_lr: float
     # In units of update_idx.
-    entropy_cf: Schedule | float
+    entropy_cf: Union[Schedule, float]
     disc_gamma: float
 
     pol_hid_sizes: HidSizes

@@ -1,4 +1,4 @@
-from typing import TypeVar
+from typing import TypeVar, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -9,7 +9,7 @@ from jaxrl.utils.none import get_or
 _Arr = TypeVar("_Arr", np.ndarray, jnp.ndarray, bool)
 
 
-def as_shape(shape: int | Shape) -> Shape:
+def as_shape(shape: Union[int, Shape]) -> Shape:
     if isinstance(shape, int):
         shape = (shape,)
     if not isinstance(shape, tuple):
@@ -17,7 +17,7 @@ def as_shape(shape: int | Shape) -> Shape:
     return shape
 
 
-def assert_shape(arr: _Arr, shape: int | Shape, label: str | None = None) -> _Arr:
+def assert_shape(arr: _Arr, shape: Union[int, Shape], label: Union[str, None] = None) -> _Arr:
     shape = as_shape(shape)
     label = get_or(label, "array")
     if arr.shape != shape:
@@ -25,7 +25,7 @@ def assert_shape(arr: _Arr, shape: int | Shape, label: str | None = None) -> _Ar
     return arr
 
 
-def assert_scalar(arr: _Arr, label: str | None = None) -> _Arr:
+def assert_scalar(arr: _Arr, label: Union[str, None] = None) -> _Arr:
     label = get_or(label, "scalar")
     is_scalar = isinstance(arr, float) or arr.shape == tuple()
     if not is_scalar:

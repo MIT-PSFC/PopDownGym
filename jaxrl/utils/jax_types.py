@@ -19,9 +19,9 @@ BVec3 = Float[Arr, "b 3"]
 
 BBVec3 = Float[Arr, "b1 b2 3"]
 
-FloatScalar = float | Float[Arr, ""]
-IntScalar = int | Int[Arr, ""]
-BoolScalar = bool | Bool[Arr, ""]
+FloatScalar = Union[float, Float[Arr, ""]]
+IntScalar = Union[int, Int[Arr, ""]]
+BoolScalar = Union[bool, Bool[Arr, ""]]
 
 BFloat = Float[Arr, "b"]
 BInt = Int[Arr, "b"]

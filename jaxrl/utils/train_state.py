@@ -1,4 +1,5 @@
-from typing import Callable, Concatenate, Generic, ParamSpec, TypeVar
+from typing import Callable, Union
+from typing_extensions import ParamSpec, TypeVar, Concatenate, Generic
 
 import flax.linen as nn
 import optax
@@ -27,7 +28,7 @@ class TrainState(Generic[_R], struct.PyTreeNode):
     apply_fn: _ApplyFn = struct.field(pytree_node=False)
     params: _Params
     tx: optax.GradientTransformation = struct.field(pytree_node=False)
-    opt_state: optax.OptState | optax.InjectHyperparamsState
+    opt_state: Union[optax.OptState, optax.InjectHyperparamsState]
 
     def vars_dict(self, params: _Params = None):
         if params is None:
