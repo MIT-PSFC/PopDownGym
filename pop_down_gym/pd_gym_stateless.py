@@ -503,3 +503,8 @@ class PopDownGymStateless:
             "iota95",
         ]
         return constr_labels
+
+    @staticmethod
+    def action_labels() -> list[str]:
+        action_labels = ["dIp_dt", "dPaux_dt", "fueling19", "dgs_dt"]
+        return action_labels
