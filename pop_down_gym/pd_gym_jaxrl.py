@@ -204,7 +204,7 @@ class PDEnvFFAdj(PDEnvAdj):
 
     def _get_obs_priv(self, obs_tree, info, params_vec, shifts):
         time_s = info["time"]
-        time_s = jnp.array(time_s)
+        time_s = jnp.array([time_s])
         assert time_s.shape == (1,)
 
         obs = self.pd.flatten_obs(obs_tree)
