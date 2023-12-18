@@ -1,5 +1,5 @@
 import pathlib
-from typing import Optional
+from typing import Callable, Optional
 
 import attrs
 import ipdb
@@ -20,6 +20,23 @@ from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.reward import RewardModel
 
 
+def reorder_wandb_name(wandb_name: str = None, num_width: int = 4, max_word_len: int = 5) -> str:
+    name_orig = wandb.run.name
+    assert name_orig is not None
+    name_parts = name_orig.split("-")
+    assert len(name_parts) == 3
+    word0, word1, num = name_parts
+    # If words are too long, then truncate them.
+    word0, word1 = word0[:max_word_len], word1[:max_word_len]
+    num = num.zfill(num_width)
+    if wandb_name is not None:
+        new_name = "{}-{}".format(num, wandb_name)
+    else:
+        new_name = "{}-{}-{}".format(num, word0, word1)
+    wandb.run.name = new_name
+    return new_name
+
+
 def train_ppo(
     key: PRNGKey,
     env_train: Env,
@@ -28,11 +45,15 @@ def train_ppo(
     collect_cfg: CollectorCfg,
     project_name: str,
     warmstart: Optional[pathlib.Path] = None,
+    make_ppo: Callable = None,
 ):
 
     key_ppo, key_collect = jr.split(key, 2)
 
-    ppo = PPOAlg.create(key_ppo, env_train, ppo_cfg)
+    if make_ppo is None:
+        make_ppo = PPOAlg.create
+
+    ppo = make_ppo(key_ppo, env_train, ppo_cfg)
 
     if warmstart is not None:
         assert warmstart.exists()
@@ -57,6 +78,7 @@ def train_ppo(
 
     cfg_total = {"ppo": attrs.asdict(ppo_cfg), "collect": attrs.asdict(collect_cfg)}
     wandb.init(project=project_name, config=cfg_total)
+    reorder_wandb_name()
 
     run_dir = pathlib.Path(__file__).parent.parent / "runs/{}".format(wandb.run.name)
     ckpt_dir = run_dir / "ckpts"

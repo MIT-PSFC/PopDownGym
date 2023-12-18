@@ -22,6 +22,7 @@ class PDParamsDict(TypedDict):
 
 
 class PDState(NamedTuple):
+    # In seconds.
     time: FloatScalar
     params: PDParamsDict
     state: dict
@@ -107,9 +108,16 @@ class PDEnvAdj(Env):
         self.offset = offset
         self.shift_mult = shift_mult
 
+    @property
+    def dt(self):
+        return self.pd.dt
+
+    def get_obs(self, obs_tree: dict[str, jnp.array], info: dict):
+        return self.pd.flatten_obs(obs_tree)
+
     def step_env(self, key: PRNGKey, state: PDAdjState, action) -> StepOutput:
         obs_tree, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, action)
-        obs = self.pd.flatten_obs(obs_tree)
+        obs = self.get_obs(obs_tree, info)
         terminated = info["out_of_bounds"] | info["hit_goal"]
         new_state = PDAdjState(info["time"], state.params, info["state"], state.shifts)
 
@@ -155,7 +163,7 @@ class PDEnvAdj(Env):
     def reset_env(self, key: PRNGKey) -> tuple[Obs, Obs, PDAdjState]:
         key_pd, key_shifts = jr.split(key, 2)
         params, state, obs_tree, info = self.pd.reset(key_pd)
-        obs = self.pd.flatten_obs(obs_tree)
+        obs = self.get_obs(obs_tree, info)
 
         shifts_arr = self.shift_mult * jr.uniform(key_shifts, (len(self.shift_ranges),), minval=-1, maxval=1)
 
@@ -179,3 +187,17 @@ class PDEnvAdj(Env):
     @property
     def constr_labels(self):
         return PopDownGymStateless.constr_labels()
+
+
+class PDEnvFFAdj(PDEnvAdj):
+    """PDEnv, but only the time and shift ranges are observable."""
+
+    def get_obs(self, obs_tree: dict[str, jnp.array], info: dict):
+        time_s = info["time"]
+        assert isinstance(time_s, float) or time_s.shape == tuple()
+        return jnp.array([time_s])
+
+    def add_to_obs(self, obs, shifts):
+        shifts = jnp.array([shifts[k] / shift for k, shift in self.shift_ranges.items()])
+        obs = jnp.concatenate([obs, shifts])
+        return obs
