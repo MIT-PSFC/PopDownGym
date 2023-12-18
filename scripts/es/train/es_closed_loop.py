@@ -132,7 +132,7 @@ def plot_action_trajectory(
     wandb.log({"Feedforward trajectory": fig}, commit=commit_wandb)
 
 
-def plot_test_set_trajectories(t, reward_inputs, save_path=None, commit_wandb=False):
+def plot_test_set_trajectories(env, t, reward_inputs, save_path=None, commit_wandb=False):
     constr_labels = PopDownGymStateless.constr_labels()
     nconstr = len(constr_labels)
     ylims = {
@@ -146,18 +146,7 @@ def plot_test_set_trajectories(t, reward_inputs, save_path=None, commit_wandb=Fa
         "shafranov_coeff": [1.95, 4.05],
         "iota95": [0.05, 0.25],
     }
-    rew_bounds = {
-        "li": [2, 3],
-        "ng_frac": [0.5, 0.8],
-        "beta_n": [0.015, 0.028],
-        "beta_p": [0.25, 0.4],
-        "Bv_dot_mag": [0.2, 0.4],
-        "Wdot_mag": [20_000_000, 70_000_000],
-        "shafranov_coeff": [3.4, 3.6],
-        "iota95": [0.35, 0.45],
-    }
-    rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
-    constr_ub = rew_centers
+    constr_ub = env.reward_model.limits
     Ip_MA_tgt = 2.0
 
     figsize = np.array([6, 1.2 * nconstr])
@@ -177,6 +166,10 @@ def plot_test_set_trajectories(t, reward_inputs, save_path=None, commit_wandb=Fa
         # Plot the limits.
         ymin, ymax = ax.get_ylim()
         if label in constr_ub:
+            # Make sure the limit is within the plot limits.
+            ymin = min(ymin, constr_ub[label])
+            ymax = max(ymax, constr_ub[label])
+
             # Expand the ymax a bit.
             yrange = ymax - ymin
             ax.set_ylim(ymin - 0.1 * yrange, ymax + 0.1 * yrange)
@@ -373,7 +366,7 @@ def train_es_closed_loop(
             ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_policy)
 
             plot_test_set_trajectories(
-                t_test, reward_inputs_test, save_path, commit_wandb=False
+                env, t_test, reward_inputs_test, save_path, commit_wandb=False
             )
             plot_action_trajectory(
                 env, t_test, actions_test, save_path, commit_wandb=False
@@ -468,7 +461,7 @@ def train_es_closed_loop(
     wandb.save(os.path.join(save_path, "test_env_performance.eqx"))
 
     # Plot the trajectories on the test set
-    plot_test_set_trajectories(t_test, reward_inputs_test, save_path, commit_wandb=True)
+    plot_test_set_trajectories(env, t_test, reward_inputs_test, save_path, commit_wandb=True)
 
     # Plot trajectory in unnormalized action space
     plot_action_trajectory(env, t_test, actions_test, save_path, commit_wandb=True)

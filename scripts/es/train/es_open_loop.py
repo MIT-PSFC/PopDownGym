@@ -20,6 +20,7 @@ from scipy.special import binom
 from tqdm import tqdm
 
 import wandb
+from contrax.controls.controls import cubic_interp
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from scripts.es.train.es_closed_loop import (plot_action_trajectory,
                                              plot_hit_time_vs_reward,
@@ -89,6 +90,29 @@ class Spline(eqx.Module):
 
         # Clamp
         return jax.nn.tanh(y)
+    
+
+class CubicTrajectory(eqx.Module):
+    controls: jax.Array
+
+    def __init__(self, key, n_control_pts, output_dimension):
+        # Generate some random initial control points
+        self.controls = jax.random.normal(key, (output_dimension, n_control_pts))
+
+    def __call__(self, t):
+        """
+        Return a cubic interpolation of the trajectory at the given time
+        
+        Args:
+            t: the normalized time to evaluate the trajectory at (between 0 and 1)
+        """
+        ts = jnp.linspace(0.0, 1.0, self.controls.shape[1])
+        f_ctrl = cubic_interp(ts, self.controls.T)
+        y = f_ctrl.evaluate(t).reshape(self.controls.shape[0])
+
+        # Clamp
+        return jax.nn.tanh(y)
+
 
 def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
     """Simulate the trajectory in the environment."""
@@ -144,16 +168,21 @@ def train_es_open_loop(
     uncertainty_size: float,
     hidden_dims: int = 512,
     hidden_layers: int = 2,
-    spine_degree: int = 10,
-    use_spline=True,
-    simulation_steps: int = 150,
+    num_control_points: int = 10,
+    use_spline=False,
+    use_cubic=True,
+    simulation_steps: int = 100,
     num_generations: int = 500,
     top_k: int = 5,
     popsize: int = 256,
-    num_eval_rollouts: int = int(1e2),
+    num_eval_rollouts: int = int(1e3),
     lrate_init: float = 0.1,
     plot_every: int = 10,
 ):
+    # Check inputs
+    if use_spline and use_cubic:
+        raise ValueError("Can only use one of spline or cubic trajectories")
+
     # Set the seed for reproducibility
     prng_key = jax.random.PRNGKey(0)
 
@@ -178,14 +207,22 @@ def train_es_open_loop(
     )
 
     # Init wandb and save hyperparams
+    if use_spline:
+        label = "spline"
+    elif use_cubic:
+        label = "cubic"
+    else:
+        label = "mlp"
+
     wandb.init(
         project="popdown",
-        name=f"es-open-loop-sparse-noterminate-{'spline' if use_spline else 'mlp'}",
+        name=f"es-open-loop-dense-noterminate-{label}",
         config={
             "hidden_dims": hidden_dims,
             "hidden_layers": hidden_layers,
-            "spine_degree": spine_degree,
+            "num_control_points": num_control_points,
             "use_spline": use_spline,
+            "use_cubic": use_cubic,
             "simulation_steps": simulation_steps,
             "num_generations": num_generations,
             "top_k": top_k,
@@ -200,7 +237,7 @@ def train_es_open_loop(
     save_path = os.path.join(
         "tmp",
         "es",
-        f"open_loop_sparse-noterminate_{'spline' if use_spline else 'mlp'}",
+        f"open_loop_dense-noterminate_{label}",
         f"uncertainty_{uncertainty_size:.2f}",
         f"lr_{lrate_init:.1e}",
     )
@@ -233,7 +270,9 @@ def train_es_open_loop(
 
     prng_key, policy_key = jax.random.split(prng_key)
     if use_spline:
-        initial_traj = Spline(policy_key, spine_degree, env.n_actions)
+        initial_traj = Spline(policy_key, num_control_points, env.n_actions)
+    elif use_cubic:
+        initial_traj = CubicTrajectory(policy_key, num_control_points, env.n_actions)
     else:
         # Create an MLP to represent the trajectory
         initial_traj = MLP(policy_key, hidden_layers, hidden_dims, env.n_actions)
@@ -246,7 +285,7 @@ def train_es_open_loop(
         num_dims=param_reshaper.total_params,
         opt_name="adam",
         lrate_init=lrate_init,
-        lrate_decay=0.99,
+        lrate_decay=0.995,
         lrate_limit=1e-3,
     )
     es_logging = es.ESLog(
@@ -298,7 +337,7 @@ def train_es_open_loop(
             ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_trajectory)
 
             plot_test_set_trajectories(
-                t_test, reward_inputs_test, save_path, commit_wandb=False
+                env, t_test, reward_inputs_test, save_path, commit_wandb=False
             )
             plot_action_trajectory(
                 env, t_test, actions_test, save_path, commit_wandb=False
@@ -402,7 +441,7 @@ def train_es_open_loop(
     wandb.save(os.path.join(save_path, "test_env_performance.eqx"))
 
     # Plot the trajectories on the test set
-    plot_test_set_trajectories(t_test, reward_inputs_test, save_path, commit_wandb=True)
+    plot_test_set_trajectories(env, t_test, reward_inputs_test, save_path, commit_wandb=True)
 
     # Plot trajectory in unnormalized action space
     plot_action_trajectory(env, t_test, actions_test, save_path, commit_wandb=True)
