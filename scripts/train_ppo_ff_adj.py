@@ -31,6 +31,13 @@ def main():
     logger.info("Constructing Env...")
     env_train = PDEnvFFAdj(shift_ranges=shift_ranges, limits=rew_centers)
     env_test = PDEnvFFAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
+
+    ###################################################
+    logger.info("Multiplying hit goal reward by 0.5!")
+    env_train.pd.reward_model.params["hit_goal_reward"] /= 2
+    env_test.pd.reward_model.params["hit_goal_reward"] /= 2
+    ###################################################
+
     logger.info("Constructing Env... Done!")
     train_cfg = PPOTrainCfg(
         gae_lambda=0.95,
