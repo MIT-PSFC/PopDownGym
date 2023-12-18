@@ -486,7 +486,8 @@ class PopDownGymStateless:
     def create_env(cls):
         config_filepath = os.path.join(pop_down_gym.ROOT_DIR, "configs/gym.yaml")
         config = yaml.safe_load(open(config_filepath, "r"))
-        model, _ = Model.create_default()
+        # model, _ = Model.create_default()
+        model, _ = Model.create_cached_default()
         return cls(config, model)
 
     @staticmethod

@@ -1,16 +1,20 @@
+import pathlib
+import pickle
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
+from loguru import logger
 
 import pop_down_gym
 import pop_down_gym.physics as physics
-from pop_down_gym import constants
-from pop_down_gym.geometry import Geometry
-from pop_down_gym.profiles import ProfileBases
 from contrax.examples.plasma.li_ip.models import RomeroNNV
 from contrax.simulate import SimFFControl
-
+from pop_down_gym import constants
+from pop_down_gym.geometry import Geometry
 from pop_down_gym.load_data import load_data
+from pop_down_gym.profiles import ProfileBases
+
 
 class Model:
     geom: Geometry
@@ -215,16 +219,72 @@ class Model:
         lmode_basis, _, _ = ProfileBases.from_dataset(lmode_data)
 
         romero_nnv = RomeroNNV(
-                        consts,
-                        eqx.nn.MLP(
-                            in_size=3 + 2,
-                            out_size=1,
-                            width_size=32,
-                            depth=2,
-                            key=jax.random.PRNGKey(0),
-                            activation=jax.nn.softplus,
-                        ),
-                    )
+            consts,
+            eqx.nn.MLP(
+                in_size=3 + 2,
+                out_size=1,
+                width_size=32,
+                depth=2,
+                key=jax.random.PRNGKey(0),
+                activation=jax.nn.softplus,
+            ),
+        )
+        li_ip_sim = SimFFControl(romero_nnv, dt0=0.01)
+        li_ip_sim = eqx.tree_deserialise_leaves(
+            f"{pop_down_gym.ROOT_DIR}/../contrax/contrax/examples/plasma/models/romero_nnv.eqx",
+            li_ip_sim,
+        )
+        return cls(g, li_ip_sim.model, hmode_basis, lmode_basis, consts), ds
+
+    @classmethod
+    def create_cached_default(cls):
+        CACHE_DIR = pathlib.Path(__file__).parent / "cache"
+        cache_path = CACHE_DIR / "model_default_cache.pkl"
+
+        if cache_path.exists():
+            logger.info("Loading cached model from {}...".format(cache_path))
+            with open(cache_path, "rb") as f:
+                ds, hmode_basis, lmode_basis, consts, g = pickle.load(f)
+        else:
+            logger.info("Loading data...")
+            ds, ds_geom = load_data()
+
+            consts = constants.ShotConstants.for_sparc()
+            g = Geometry(
+                consts.R0,
+                ds_geom.time.values,
+                ds_geom.aminor.values.squeeze(),
+                ds_geom.kappa.values.squeeze(),
+                ds_geom.kappa_a.values.squeeze(),
+                ds_geom.Vp.values.squeeze(),
+            )
+            #
+            hmode = ds["te"].sel(rho=0.95, method="nearest") > 3000
+            ds["Hmode"] = hmode.drop_vars("rho")  #
+            hmode_data = ds.where(ds["Hmode"], drop=True)
+            lmode_data = ds.where(~ds["Hmode"], drop=True)
+
+            logger.info("Loading Profile Bases...")
+            hmode_basis, _, _ = ProfileBases.from_dataset(hmode_data)
+            lmode_basis, _, _ = ProfileBases.from_dataset(lmode_data)
+
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "wb") as f:
+                pickle.dump((ds, hmode_basis, lmode_basis, consts, g), f)
+
+            logger.info("Saved default model cache to {}!".format(cache_path))
+
+        romero_nnv = RomeroNNV(
+            consts,
+            eqx.nn.MLP(
+                in_size=3 + 2,
+                out_size=1,
+                width_size=32,
+                depth=2,
+                key=jax.random.PRNGKey(0),
+                activation=jax.nn.softplus,
+            ),
+        )
         li_ip_sim = SimFFControl(romero_nnv, dt0=0.01)
         li_ip_sim = eqx.tree_deserialise_leaves(
             f"{pop_down_gym.ROOT_DIR}/../contrax/contrax/examples/plasma/models/romero_nnv.eqx",
