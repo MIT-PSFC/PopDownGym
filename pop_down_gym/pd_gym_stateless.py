@@ -453,7 +453,6 @@ class PopDownGymStateless:
         return out
 
     def flatten_obs(self, obs: PyTree[float]) -> jnp.ndarray:
-        assert obs["Hmode"].dtype == jnp.int32
         obs_cts = obs["continuous"]
         obs_hmode = jnp.where(obs["Hmode"] == 1, 1.0, -1.0)
         

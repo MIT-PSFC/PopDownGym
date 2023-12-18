@@ -5,6 +5,9 @@ import pop_down_gym
 from pop_down_gym.train import get_env_builder
 from pop_down_gym.raptor.raptor_rd_gym import RaptorRDGym
 from pop_down_gym.raptor.visualize import plot_df
+from pop_down_gym.pd_gym import PopDownGym
+from pop_down_gym.scripts.train_es import MLP as ES_MLP
+from pop_down_gym.scripts.example_load_ppo_adj_ckpt import default_build_ppo
 from stable_baselines3.common.vec_env import DummyVecEnv
 import pandas as pd
 
@@ -12,14 +15,33 @@ class PolicyInterface:
     def __init__(self):
         self.model, self.train_env = PolicyInterface.load_model_and_train_env()
 
+        self.train_env = vec_env.envs[0]
+        if model_type == "PPO_SB3":
+            model = PPO.load(model_path, env=vec_env)
+            self.model_fn = lambda obs: model.predict(obs)[0]
+        elif model_type == "ES_DAWSON":
+            prng_key = jax.random.PRNGKey(0)
+            # Load the best policy trained using ES
+            hidden_dims = 512
+            hidden_layers = 4
+            prng_key, policy_key = jax.random.split(prng_key)
+            mlp = ES_MLP(policy_key, self.train_env.stateless_env.n_obs, hidden_layers, hidden_dims, self.train_env.stateless_env.n_actions)
+            mlp = eqx.tree_deserialise_leaves(model_path, mlp)                
+            self.model_fn = mlp
+        elif model_type == "PPO_OSO":
+            ppo, env, offset_dict, tmp_dir = default_build_ppo()
+            self.model_fn = lambda obs: ppo.act(self.train_env.stateless_env.flatten_obs(obs))
+        else:
+            raise ValueError("model_type must be one of PPO_SB3, ES_DAWSON, PPO_OSO")
+        
     @staticmethod
-    def load_model_and_train_env():
-        GYM_CONFIG = os.path.join(pop_down_gym.ROOT_DIR, "configs/gym.yaml")
-        gym_config = yaml.safe_load(open(GYM_CONFIG, "r"))
-        env = DummyVecEnv([get_env_builder(gym_config, 0)])
-        model = PPO.load("/home/awang/Scratch/rd_rl/20231004_best/best_model.zip", env=env)
-        return model, env.envs[0]
-
+    def get_env_builder(seed):
+        def build_env():
+            env = PopDownGym.create_env()
+            env.reset(seed=seed)
+            return env
+        return build_env
+    
     def state_to_action(self, train_env_state):
         obs = self.train_env.state_to_obs(train_env_state)
         action = self.model.predict(obs)[0]

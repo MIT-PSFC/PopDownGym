@@ -13,8 +13,7 @@ from jaxrl.env import StepOutput
 from jaxrl.ppo import PPOAlg, PPOCfg
 from pop_down_gym.pd_gym_jaxrl import PDEnvAdj
 
-
-def main():
+def default_build_ppo():
     rew_bounds = {
         "li": [2, 3],
         "ng_frac": [0.5, 0.8],
@@ -58,6 +57,10 @@ def main():
     orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
     ppo_dict = orbax_checkpointer.restore(ckpt_path, item={"ppo": ppo})
     ppo: PPOAlg = ppo_dict["ppo"]
+    return ppo, env, offset_dict, tmp_dir
+
+def main():
+    ppo, env, offset_dict, tmp_dir = default_build_ppo()
 
     ######################################################
     # Example of using the loaded policy.
