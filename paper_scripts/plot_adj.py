@@ -22,6 +22,7 @@ def main(pkl_path: pathlib.Path):
 
     plot_dir = pkl_path.parent
 
+    plt.style.use("ggplot")
     setup_nature_style()
 
     with open(pkl_path, "rb") as f:
