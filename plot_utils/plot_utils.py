@@ -27,6 +27,8 @@ def setup_nature_style():
         helvetica_path = pathlib.Path(__file__).parent.parent / "tmp/helvetica.ttf"
         assert helvetica_path.exists()
         font_manager.fontManager.addfont(helvetica_path)
+        helvetica_path = pathlib.Path(__file__).parent.parent / "tmp/helvetica-bold.ttf"
+        font_manager.fontManager.addfont(helvetica_path)
 
     params = {
         "savefig.transparent": True,
@@ -51,8 +53,8 @@ def setup_nature_style():
 def get_constr_labels_mathtext():
     return [
         r"$I_p$",
-        r"$\frac{d}{dt} B_v\ \mathrm{(T/s)}$",
-        r"$\frac{d}{dt} W\ \mathrm{(J/s)}$",
+        r"$\frac{d}{dt} B_v\ \mathrm{(Ts^{-1})}$",
+        r"$\frac{d}{dt} W\ \mathrm{(Js^{-1})}$",
         r"$\beta_n$",
         r"$\beta_p$",
         r"$l_i$",

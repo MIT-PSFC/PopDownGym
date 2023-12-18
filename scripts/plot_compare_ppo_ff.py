@@ -1,8 +1,8 @@
 import copy
-import einops as ei
 import pathlib
 import pickle
 
+import einops as ei
 import ipdb
 import jax
 import jax.lax as lax
@@ -27,20 +27,33 @@ from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 EvalData = tuple[BTBool, BTState, BTControl, BTFloat, dict]
 
 
-def get_segs(bT_rew, bT_valid_mask, dt: float):
-    b_segs = []
+def get_segs(bT_rew, bT_Hmode: BTBool, bT_valid_mask, dt: float):
+    b_segs_H, b_segs_L = [], []
     for bb, T_r in enumerate(bT_rew):
+        T_Hmode = bT_Hmode[bb]
+
         # Truncate to valid only.
         if not np.all(bT_valid_mask[bb]):
             idx_first_invalid = bT_valid_mask[bb].argmin()
             T_r = T_r[:idx_first_invalid]
+            T_Hmode = T_Hmode[:idx_first_invalid]
 
-        T = len(T_r)
-        T_ts = dt * np.arange(T)
+        # Start in Hmode.
+        Hmode_len = np.sum(T_Hmode)
+
+        T_H = Hmode_len
+        T_ts = dt * np.arange(T_H + 1)
         # (T, 2)
-        segs = np.stack([T_ts, T_r], axis=1)
-        b_segs.append(segs)
-    return b_segs
+        segs_H = np.stack([T_ts, T_r[:Hmode_len + 1]], axis=1)
+        b_segs_H.append(segs_H)
+
+        T_L = len(T_r) - Hmode_len
+        T_ts = dt * (T_H + np.arange(T_L))
+        # (T, 2)
+        segs_L = np.stack([T_ts, T_r[Hmode_len:]], axis=1)
+        b_segs_L.append(segs_L)
+
+    return b_segs_H, b_segs_L
 
 
 def main(pkl_path: pathlib.Path):
@@ -97,21 +110,26 @@ def main(pkl_path: pathlib.Path):
             bT_control = ei.repeat(bT_control, "T nu -> b T nu", b=len(bT_rew))
         bT_rew_inputs = bT_info["reward_inputs"]
 
+        bT_Hmode: BTBool = bT_state.state["Hmode"] == 1
+
         axes[0, jj].set_title(k)
 
         for ii, ax in enumerate(axes[:, jj]):
             if ii < nconstr:
                 label = constr_labels[ii]
                 bT_rew_input = bT_rew_inputs[label]
-                b_segs = get_segs(bT_rew_input, bT_valid_mask, dt)
+                b_segs_H, b_segs_L = get_segs(bT_rew_input, bT_Hmode, bT_valid_mask, dt)
             else:
                 label = control_labels[ii - nconstr]
                 # T_control = bT_control
                 # bT_control_ii = T_control[None, :, ii - nconstr]
                 bT_control_ii = bT_control[:, :, ii - nconstr]
-                b_segs = get_segs(bT_control_ii, bT_valid_mask, dt)
+                b_segs_H, b_segs_L = get_segs(bT_control_ii, bT_Hmode, bT_valid_mask, dt)
                 ax.set_ylim(-1.02, 1.02)
-            col = LineCollection(b_segs, color="C1", lw=0.5, alpha=0.4)
+
+            col = LineCollection(b_segs_H, color="C1", lw=0.5, alpha=0.4)
+            ax.add_collection(col)
+            col = LineCollection(b_segs_L, color="C2", lw=0.5, alpha=0.4)
             ax.add_collection(col)
 
             if jj == 0:
