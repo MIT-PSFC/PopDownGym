@@ -5,13 +5,10 @@ import ipdb
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import numpy as np
-import tqdm
 import typer
-from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
 
 from jaxrl.helpers import get_default_rew_bounds
-from jaxrl.ppo import PPOEval
 from plot_utils.plot_utils import get_constr_labels_mathtext, get_segs, setup_nature_style
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
