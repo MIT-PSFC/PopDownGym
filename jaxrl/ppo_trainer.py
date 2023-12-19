@@ -38,6 +38,7 @@ def reorder_wandb_name(wandb_name: str = None, num_width: int = 4, max_word_len:
 
 
 def train_ppo(
+    wandb_name: str,
     key: PRNGKey,
     env_train: Env,
     env_test: Env,
@@ -78,7 +79,7 @@ def train_ppo(
 
     cfg_total = {"ppo": attrs.asdict(ppo_cfg), "collect": attrs.asdict(collect_cfg)}
     wandb.init(project=project_name, config=cfg_total)
-    reorder_wandb_name()
+    reorder_wandb_name(wandb_name)
 
     run_dir = pathlib.Path(__file__).parent.parent / "runs/{}".format(wandb.run.name)
     ckpt_dir = run_dir / "ckpts"

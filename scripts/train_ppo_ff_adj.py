@@ -10,7 +10,7 @@ from pop_down_gym.pd_gym_jaxrl import PDEnvFFAdj
 from pop_down_gym.ppo_ff import make_ppo_ff
 
 
-def main():
+def main(wandb_name: str = None):
     set_logger_format()
 
     key = jr.PRNGKey(54123)
@@ -32,10 +32,10 @@ def main():
     env_train = PDEnvFFAdj(shift_ranges=shift_ranges, limits=rew_centers)
     env_test = PDEnvFFAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
 
-    ###################################################
-    logger.info("Multiplying hit goal reward by 0.8!")
-    env_train.pd.reward_model.params["hit_goal_reward"] *= 0.8
-    ###################################################
+    # ###################################################
+    # logger.info("Multiplying hit goal reward by 0.8!")
+    # env_train.pd.reward_model.params["hit_goal_reward"] *= 0.8
+    # ###################################################
 
     logger.info("Constructing Env... Done!")
     train_cfg = PPOTrainCfg(
@@ -51,10 +51,10 @@ def main():
     ppo_cfg = PPOCfg(
         pol_lr=3e-4,
         val_lr=3e-4,
-        # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
+        entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
         # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=1_000, trans_steps=5_000),
         # entropy_cf=LinDecay(2e-2, 50.0, warmup_steps=2_000, trans_steps=5_000),
-        entropy_cf=LinDecay(1e-2, 5.0, warmup_steps=2_000, trans_steps=5_000),
+        # entropy_cf=LinDecay(1e-2, 5.0, warmup_steps=2_000, trans_steps=5_000),
         disc_gamma=0.99,
         pol_hid_sizes=[256, 256, 256],
         val_hid_sizes=[256, 256, 256],
@@ -65,7 +65,9 @@ def main():
         clip_grad=1.0,
     )
     collect_cfg = CollectorCfg(n_envs=2048, rollout_T=80, n_env_eval=128, rollout_T_eval=120)
-    train_ppo(key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_ff_adj", make_ppo=make_ppo_ff)
+    train_ppo(
+        wandb_name, key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_ff_adj", make_ppo=make_ppo_ff
+    )
 
 
 if __name__ == "__main__":
