@@ -52,9 +52,9 @@ def main(wandb_name: str = None):
     ppo_cfg = PPOCfg(
         pol_lr=3e-4,
         val_lr=3e-4,
-        entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
+        # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
         # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=1_000, trans_steps=5_000),
-        # entropy_cf=LinDecay(2e-2, 50.0, warmup_steps=2_000, trans_steps=5_000),
+        entropy_cf=LinDecay(2e-2, 50.0, warmup_steps=2_000, trans_steps=5_000),
         # entropy_cf=LinDecay(1e-2, 5.0, warmup_steps=2_000, trans_steps=5_000),
         disc_gamma=0.99,
         pol_hid_sizes=[256, 256, 256],
