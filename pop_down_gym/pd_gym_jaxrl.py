@@ -152,10 +152,6 @@ class PDEnvAdj(Env):
     def get_shift_obs(self, state_shifts):
         return jnp.array([state_shifts[k] / shift for k, shift in self.shift_ranges.items()])
 
-    def add_to_obs(self, obs, shifts):
-        obs = jnp.concatenate([obs, shifts])
-        return obs
-
     def _params_to_obsvec(self, params: PDParamsDict) -> Obs:
         obs = []
         for k, obs_range in self.pd.random_param_ranges.items():
@@ -170,7 +166,6 @@ class PDEnvAdj(Env):
     def reset_env(self, key: PRNGKey) -> tuple[Obs, Obs, PDAdjState]:
         key_pd, key_shifts = jr.split(key, 2)
         params, state, obs_tree, info = self.pd.reset(key_pd)
-        obs = self.get_obs(obs_tree, info)
 
         shifts_arr = self.shift_mult * jr.uniform(key_shifts, (len(self.shift_ranges),), minval=-1, maxval=1)
 
@@ -180,7 +175,8 @@ class PDEnvAdj(Env):
         env_state = PDAdjState(info["time"], params, state, shifts)
 
         # Make the shift ranges observable. [-1, 1].
-        obs = self.add_to_obs(obs, shifts)
+        shift_obs = self.get_shift_obs(env_state.shifts)
+        obs = self.get_obs(obs_tree, info, shift_obs)
 
         params_vec = self._params_to_obsvec(env_state.params)
         obs_priv = self._get_obs_priv(obs_tree, info, params_vec, shifts)
