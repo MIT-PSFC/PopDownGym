@@ -1,28 +1,18 @@
 import functools as ft
-from typing import Any, Literal, NamedTuple
 
-import jax
-import jax.lax as lax
-import jax.numpy as jnp
 import jax.random as jr
-import jax.tree_util as jtu
 import optax
-from attrs import define
-from flax import struct
 from loguru import logger
 
-from jaxrl.env import Env, StepOutput
-from jaxrl.env_types import BObs, BState, BTControl, BTState, Control, Obs, TControl, TObs
+from jaxrl.env import Env
 from jaxrl.networks.mlp import MLP
-from jaxrl.networks.network_utils import ActLiteral, HidSizes, get_act_from_str
-from jaxrl.networks.policy import NormalPolicyStdConst, TanhNormalPolicy, TanhTransformedDistribution
+from jaxrl.networks.network_utils import get_act_from_str
+from jaxrl.networks.policy import NormalPolicyStdConst, TanhNormalPolicy
 from jaxrl.networks.value import ValueNet
 from jaxrl.ppo import MovingAverage, PPOAlg, PPOCfg
-from jaxrl.utils.grad_utils import compute_norm, compute_norm_and_clip
-from jaxrl.utils.jax_types import BTBool, BTFloat, FloatScalar, IntScalar, MetricsDict, PRNGKey, TBool, TFloat
-from jaxrl.utils.jax_utils import concat_at_front, jax_vmap, merge01, tree_split_dims
-from jaxrl.utils.schedule import Schedule, as_schedule
-from jaxrl.utils.tfp import tfd
+from jaxrl.ppo_il import PPOILAlg
+from jaxrl.utils.jax_types import PRNGKey
+from jaxrl.utils.schedule import as_schedule
 from jaxrl.utils.train_state import TrainState
 from pop_down_gym.tv_encoder import TVEncoder
 
@@ -66,6 +56,23 @@ def make_ppo_ff(key: PRNGKey, env: Env, cfg: PPOCfg):
     V_ma = MovingAverage.create()
     ent_cf_sched = as_schedule(cfg.entropy_cf).make()
     return PPOAlg(0, key, pol, V, V_ma, cfg.pol_lr, ent_cf_sched, env, cfg)
+
+
+def make_ppo_ff_bc(key: PRNGKey, env: Env, cfg: PPOCfg, pol_expert, bc_coeff: float):
+    ppo_alg = make_ppo_ff(key, env, cfg)
+    return PPOILAlg(
+        ppo_alg.update_idx,
+        ppo_alg.key,
+        ppo_alg.policy,
+        ppo_alg.V,
+        ppo_alg.V_ma,
+        ppo_alg.pol_lr,
+        ppo_alg.ent_cf_sched,
+        ppo_alg.env,
+        ppo_alg.cfg,
+        pol_expert,
+        bc_coeff,
+    )
 
 
 def _optim(learning_rate: float, clip_grad: float):
