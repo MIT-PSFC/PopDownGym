@@ -1,12 +1,9 @@
-import glob
-
 import numpy as np
-import pandas as pd
 import scipy.io as sio
-import xarray as xr
-from tqdm import tqdm
 import pandas as pd
-
+from pop_down_gym.pd_gym_stateless import PopDownGymStateless
+from pop_down_gym.physics import shafranov_coeff
+from pop_down_gym.constants import ShotConstants
 
 def loadmat(filename):
     """https://stackoverflow.com/questions/7008608/scipy-io-loadmat-nested-structures-i-e-
@@ -42,34 +39,6 @@ def loadmat(filename):
     return _check_keys(data)
 
 
-def convert_to_df(data):
-    time = data["time"]
-
-    def maybe_take_edge(var):
-        var_data = data[var]
-        if var_data.ndim == 2:
-            return var_data[-1, :]
-        elif var_data.ndim == 1:
-            return var_data
-        else:
-            raise ValueError("var_data.ndim = {}".format(var_data.ndim))
-        return
-
-    df_dic = {}
-    for key in data.keys():
-        if (
-            key == "time"
-            or not isinstance(data[key], np.ndarray)
-            or (data[key].ndim != 1 and data[key].ndim != 2)
-            or time.size not in data[key].shape
-        ):
-            continue
-        df_dic[key] = maybe_take_edge(key)
-
-    df = pd.DataFrame(df_dic, index=time)
-    return df
-
-
 def plot_df(df, lines=None, title=None):
     import matplotlib.pyplot as plt
 
@@ -94,25 +63,31 @@ def plot_df(df, lines=None, title=None):
 
 
 if __name__ == "__main__":
-    data = loadmat("best_result.mat")
-    df = convert_to_df(data["out"])
+    env = PopDownGymStateless.create_env()
+    df = pd.read_pickle("sim2sim.pkl")
+    consts = ShotConstants.for_sparc()
     df["Wdot_mag"] = np.abs(df["dWtdt"])
 
     # Differentiate Bv.
     df["Bvdot_mag"] = np.abs(np.gradient(df["Bv"], df.index))
     df["Ip_dot"] = np.gradient(df["Ip"], df.index)
-    lines = {
-        "Bvdot_mag": 0.3,
-        "Wdot_mag": 4e7,
-        "betaN": 1.5,
-        "betapol": 0.3,
-        "li3": 3.0,
-        "fne_gr": 0.5,
-    }
+
+    # Change betaN from percents to non-dimensional.
+    df["betaN"] = 0.01 * df["betaN"]
+
+    # Compute iota95 from q95
+    df["iota95"] = 1.0/df["q95"]
+
+    # Minor radius = R0 * epsilon
+    df["aminor"] = consts.R0 * df["epsilon"]
+
+    # Compute the shafranov coeff.
+    df["Gamma"] = shafranov_coeff(consts.R0, df["aminor"].to_numpy(), df["kappa"].to_numpy(), df["betapol"].to_numpy(), df["li3"].to_numpy())
+
     plot_df(
-        df[["Ip", "Bvdot_mag", "Wdot_mag", "betaN", "betapol", "li3", "fne_gr"]],
-        lines,
+        df[["Ip", "Bv_dot_mag", "Wdot_mag", "betaN", "betapol", "li3", "fne_gr", "Gamma", "iota95"]],
+        df.attrs['constraint_limits'],
         title="RL Controller + Raptor",
     )
 
-    plot_df(df[["Ip_dot", "Pauxtot", "kappa"]])
+    # plot_df(df[["Ip_dot", "Pauxtot", "kappa"]])

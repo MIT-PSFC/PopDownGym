@@ -1,6 +1,6 @@
 import matlab.engine
 import numpy as np
-
+import pandas as pd
 
 def to_numpy(arr):
     """Convert a matlab array to numpy.
@@ -169,3 +169,36 @@ class VWrapper:
             return VWrapper(self.v[:, val], self.model)
         else:
             raise NotImplementedError
+
+def convert_to_df(raptor_out):
+
+    # Convert to numpy.
+    for key in raptor_out.keys():
+        if isinstance(raptor_out[key], matlab.double):
+            raptor_out[key] = to_numpy(raptor_out[key]).squeeze()
+
+    time = raptor_out["time"]
+
+    def maybe_take_edge(var):
+        var_data = raptor_out[var]
+        if var_data.ndim == 2:
+            return var_data[-1, :]
+        elif var_data.ndim == 1:
+            return var_data
+        else:
+            raise ValueError("var_data.ndim = {}".format(var_data.ndim))
+        return
+
+    df_dic = {}
+    for key in raptor_out.keys():
+        if (
+            key == "time"
+            or not isinstance(raptor_out[key], np.ndarray)
+            or (raptor_out[key].ndim != 1 and raptor_out[key].ndim != 2)
+            or time.size not in raptor_out[key].shape
+        ):
+            continue
+        df_dic[key] = maybe_take_edge(key)
+
+    df = pd.DataFrame(df_dic, index=time)
+    return df

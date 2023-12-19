@@ -96,6 +96,10 @@ class RaptorRDGym:
         self.step_times = raptor_dt * np.arange(rspgs)
 
     @property
+    def time(self):
+        return self.raptor_iter * self.raptor_dt
+
+    @property
     def raptor_iter(self):
         return self.gym_iter * self.rspgs
 
@@ -179,7 +183,7 @@ class RaptorRDGym:
         )
         return
 
-    def state_for_pd_gym(self):
+    def obs_for_pd_gym(self):
         raptor_out = self.outs[-1]
         Li = to_numpy(raptor_out["Li"]).squeeze()
         Ip = to_numpy(raptor_out["Ip"][-1]).squeeze()
@@ -189,7 +193,7 @@ class RaptorRDGym:
 
         vc_minus_vb = -Li_dot * Ip[1:] - Ip_dot * Li[1:]
 
-        state = {
+        obs = {
             "li": raptor_out["li3"][0][-1], # li = li3 under the assumption that the plasma is perfectly toroidal.
             "Ip_MA": 1e-6 * Ip[-1],
             # Take the mean over the last "rspgs" steps to avoid
@@ -201,7 +205,7 @@ class RaptorRDGym:
             "gs": self.geom_var.gs,
             "Hmode": int(self.currently_h_mode),
         }
-        return state
+        return obs
 
     def get_vstep(self, ne_line, ni_line):
         """
@@ -216,17 +220,12 @@ class RaptorRDGym:
 
         # We don't know what the H-L threshold is, for this sim lets just create a fudge factor.
         PLH = out_prev["PLH"][0][-1]
-        fudge_factor = 0.6
+        fudge_factor = 0.55
         PHL = fudge_factor * PLH
 
-        # I don't really like this, but it should work.
-        # Once the HL transition occurs set the rest of the sim to LMode.
-        # TODO(allenw): raptor defines loss as conduction plus rad.
-        # In my gym, I define loss as just conduction.
-        # We should make them consistent...
-        # For now, lets see what happens if we do this...
+        # Raptor includes Prad is Ploss, but the relevant quantity for the backtransition is generally
+        # just loss through conduction. Thus, we subtract Prad from Ploss.
         Ploss = np.mean(out_prev['Ploss'][0][-self.rspgs:]) - np.mean(out_prev['Prad'][0][-self.rspgs:])
-        print(f"Ploss: {Ploss}, PHL: {PHL}")
         if Ploss > PHL and self.currently_h_mode:
             pass
         else:
