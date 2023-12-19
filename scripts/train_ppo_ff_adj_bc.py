@@ -15,7 +15,7 @@ from pop_down_gym.pd_gym_jaxrl import PDEnvAdj, PDEnvFFAdj
 from pop_down_gym.ppo_ff import make_ppo_ff_bc
 
 
-def main(ckpt_dir: pathlib.Path):
+def main(ckpt_dir: pathlib.Path, wandb_name: str = None):
     set_logger_format()
 
     key = jr.PRNGKey(54123)
@@ -68,7 +68,9 @@ def main(ckpt_dir: pathlib.Path):
     bc_coeff = 1.0
     make_ppo = ft.partial(make_ppo_ff_bc, pol_expert=pol_expert, bc_coeff=bc_coeff)
 
-    train_ppo(key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_ff_adj_bc", make_ppo=make_ppo)
+    train_ppo(
+        wandb_name, key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_ff_adj_bc", make_ppo=make_ppo
+    )
 
 
 if __name__ == "__main__":
