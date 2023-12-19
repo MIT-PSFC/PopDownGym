@@ -1,5 +1,6 @@
 import ipdb
 import jax.random as jr
+import typer
 from loguru import logger
 
 from jaxrl.ppo import CollectorCfg, PPOCfg, PPOTrainCfg
