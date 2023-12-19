@@ -32,8 +32,8 @@ class TVEncoder(nn.Module):
         sincos_feat = jnp.concatenate([sin_feat, cos_feat], axis=-1)
         #############################################################
         # 1: Pass through encoder.
-        # time_feat = self.enc_cls()(sincos_feat)
-        time_feat = sincos_feat
+        time_feat = self.enc_cls()(sincos_feat)
+        # time_feat = sincos_feat
 
         # 2: Concatenate with other features, pass through MLP.
         feat = jnp.concatenate([time_feat, other], axis=-1)
