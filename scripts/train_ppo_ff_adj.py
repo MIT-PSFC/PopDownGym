@@ -33,9 +33,8 @@ def main():
     env_test = PDEnvFFAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
 
     ###################################################
-    logger.info("Multiplying hit goal reward by 0.5!")
-    env_train.pd.reward_model.params["hit_goal_reward"] /= 2
-    env_test.pd.reward_model.params["hit_goal_reward"] /= 2
+    logger.info("Multiplying hit goal reward by 0.8!")
+    env_train.pd.reward_model.params["hit_goal_reward"] *= 0.8
     ###################################################
 
     logger.info("Constructing Env... Done!")
@@ -55,7 +54,7 @@ def main():
         # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=200, trans_steps=3_000),
         # entropy_cf=LinDecay(1e-2, 50.0, warmup_steps=1_000, trans_steps=5_000),
         # entropy_cf=LinDecay(2e-2, 50.0, warmup_steps=2_000, trans_steps=5_000),
-        entropy_cf=LinDecay(4e-2, 50.0, warmup_steps=2_000, trans_steps=5_000),
+        entropy_cf=LinDecay(1e-2, 5.0, warmup_steps=2_000, trans_steps=5_000),
         disc_gamma=0.99,
         pol_hid_sizes=[256, 256, 256],
         val_hid_sizes=[256, 256, 256],
