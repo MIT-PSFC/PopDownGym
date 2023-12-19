@@ -33,10 +33,15 @@ def setup_nature_style():
     params = {
         "savefig.transparent": True,
         "font.family": ["Helvetica", "sans-serif"],
-        "axes.edgecolor": "0.01",
+        #
+        "axes.edgecolor": "0.0",
+        "xtick.color": "0.0",
+        "ytick.color": "0.0",
+        "axes.labelcolor": "0.0",
+        #
         "axes.labelpad": 5,
-        "axes.xmargin": 0,
-        "axes.ymargin": 0,
+        "axes.xmargin": 0.01,
+        "axes.ymargin": 0.05,
         # Remove top and right spines.
         "axes.spines.top": False,
         "axes.spines.right": False,
@@ -50,15 +55,31 @@ def setup_nature_style():
     plt.rcParams.update(params)
 
 
+def get_constr_labels_mathtext_dict():
+    return {
+        "Ip_MA": r"$I_p\ \mathrm{(MA)}$",
+        "Bv_dot_mag": r"$\frac{d}{dt} B_v\ \mathrm{(T\/s^{-1})}$",
+        "Wdot_mag": r"$\frac{d}{dt} W\ \mathrm{(MJ\/s^{-1})}$",
+        "beta_n": r"$\beta_n$",
+        "beta_p": r"$\beta_p$",
+        "li": r"$l_i$",
+        "ng_frac": r"$n_{g, \mathrm{frac}}$",
+        "shafranov_coeff": r"$\Gamma$",
+        "iota95": r"$\iota_{95}$",
+    }
+
+
+def get_env_params_mathtext_dict():
+    return {
+        "ion_dilution": r"$k_{\mathrm{dil}}$",
+        "hl_factor": r"$k_{\mathrm{HL}}$",
+        "Hfactor": r"$H$",
+        "Zeff": r"$Z_{\mathrm{eff}}$",
+        "Te_over_Ti": r"$k_{\mathrm{te\_ti}}$",
+        "tau_n_factor": r"$k_N$",
+        "prad_mult": r"$k_{\mathrm{rad}}$",
+    }
+
+
 def get_constr_labels_mathtext():
-    return [
-        r"$I_p$",
-        r"$\frac{d}{dt} B_v\ \mathrm{(Ts^{-1})}$",
-        r"$\frac{d}{dt} W\ \mathrm{(Js^{-1})}$",
-        r"$\beta_n$",
-        r"$\beta_p$",
-        r"$l_i$",
-        r"$n_{g, \mathrm{frac}}$",
-        r"$\Gamma$",
-        r"$\iota_{95}$",
-    ]
+    return list(get_constr_labels_mathtext_dict().values())
