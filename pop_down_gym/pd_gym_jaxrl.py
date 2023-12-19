@@ -179,7 +179,7 @@ class PDEnvAdj(Env):
         obs = self.get_obs(obs_tree, info, shift_obs)
 
         params_vec = self._params_to_obsvec(env_state.params)
-        obs_priv = self._get_obs_priv(obs_tree, info, params_vec, shifts)
+        obs_priv = self._get_obs_priv(obs_tree, info, shift_obs, params_vec)
         assert obs_priv.ndim == 1
         return obs, obs_priv, env_state
 
@@ -198,7 +198,8 @@ class PDEnvFFAdj(PDEnvAdj):
     def get_obs(self, obs_tree: dict[str, jnp.array], info: dict, shift_obs):
         time_s = info["time"]
         assert isinstance(time_s, float) or time_s.shape == tuple()
-        return jnp.array([time_s, shift_obs])
+        time_s = jnp.array([time_s])
+        return jnp.concatenate([time_s, shift_obs], axis=0)
 
     def _get_obs_priv(self, obs_tree, info, shift_obs, params_vec):
         time_s = info["time"]
