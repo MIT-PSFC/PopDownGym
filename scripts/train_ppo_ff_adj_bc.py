@@ -62,7 +62,7 @@ def main(ckpt_dir: pathlib.Path, wandb_name: str = None):
     env_orig, ppo, _ = load_ppo(ckpt_dir, shift_ranges, rew_centers)
 
     def pol_expert(obs_priv):
-        obs_expert = obs_priv[1:]
+        obs_expert = obs_priv[1:17]
         return ppo.act(obs_expert)
 
     bc_coeff = 1.0
