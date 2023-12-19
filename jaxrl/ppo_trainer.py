@@ -47,6 +47,7 @@ def train_ppo(
     project_name: str,
     warmstart: Optional[pathlib.Path] = None,
     make_ppo: Callable = None,
+    n_iters:int=10_000
 ):
 
     key_ppo, key_collect = jr.split(key, 2)
@@ -87,7 +88,6 @@ def train_ppo(
 
     ckpt_manager = get_ckpt_manager_sync(ckpt_dir, max_to_keep=100)
 
-    n_iters = 10_000
     for idx in range(n_iters):
         ppo: PPOAlg
         logger.info("collect...")
