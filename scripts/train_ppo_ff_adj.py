@@ -34,8 +34,8 @@ def main(wandb_name: str = None):
     env_test = PDEnvFFAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
 
     ###################################################
-    # logger.info("Multiplying hit goal reward by 0.5!")
-    # env_train.pd.reward_model.params["hit_goal_reward"] *= 0.5
+    logger.info("Multiplying hit goal reward by 0.5!")
+    env_train.pd.reward_model.params["hit_goal_reward"] *= 0.5
     logger.info("Setting min_reward to -0.5")
     env_train.pd.reward_model.ip_ma["min_reward"] = -0.5
     ###################################################
