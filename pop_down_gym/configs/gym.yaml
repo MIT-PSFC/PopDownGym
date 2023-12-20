@@ -10,6 +10,8 @@ reward:
     iota95: 0.4 # Keep q95 > 2.5.
   barrier:
     use_new: true
+    # Threshold on how many times over the constraint threshold to continue penalizing.
+    clip_thresh: 2.0
     slope: 100.0
     thresh: 0.95
   ip_ma:
