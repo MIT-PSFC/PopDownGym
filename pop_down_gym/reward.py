@@ -25,8 +25,6 @@ class RewardModel:
         self.ip_ma = reward_params["ip_ma"]
 
         self.use_new_barrier = self.barrier["use_new"]
-        if self.use_new_barrier:
-            logger.info("Using new barrier!")
 
     def reward(self, reward_inputs, action):
         reward = 0.0
@@ -79,8 +77,10 @@ class RewardModel:
 
     def reward_barrier(self, val: float, limit: float) -> float:
         if self.use_new_barrier:
+            logger.info("Using new barrier with clip_thresh={}!".format(self.barrier["clip_thresh"]))
             return self.reward_barrier_2(val, limit)
         else:
+            logger.info("Using old barrier...")
             return self.reward_barrier_1(val, limit)
 
     def reward_barrier_2(self, val: float, limit: float) -> float:

@@ -20,8 +20,7 @@ from plot_utils.plot_utils import get_segs
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 
-def main():
-    pkl_path = pathlib.Path(__file__).parent / "ppo_sens_hlfactor.pkl"
+def main(pkl_path: pathlib.Path):
     with open(pkl_path, "rb") as f:
         eval_datas: dict[float, PPOEval] = pickle.load(f)
     ####################################################################################################
@@ -29,6 +28,7 @@ def main():
     anim_T = len(eval_datas)
 
     constr_ub = rew_centers
+    constr_ub["Wdot_mag"] = rew_centers["Wdot_mag"] - shift_ranges["Wdot_mag"]
     Ip_MA_tgt = 2.0
 
     hl_factors = list(eval_datas.keys())
@@ -41,13 +41,13 @@ def main():
         "beta_n": [1.25e-03, 1.17e-02],
         "beta_p": [6.96e-02, 4.57e-01],
         "li": [3.36e-01, 4.19e00],
-        "ng_frac": [2.30e-01, 5.83e-01],
+        "ng_frac": [2.30e-01, 8.20e-01],
         "shafranov_coeff": [1.95, 4.05],
         "iota95": [0.05, 0.25],
     }
 
-    KbT_Wdot_mags = np.stack([datas[kk].bT_info["reward_inputs"]["Wdot_mag"] for kk in range(anim_T)], axis=0)
-    ipdb.set_trace()
+    # KbT_Wdot_mags = np.stack([datas[kk].bT_info["reward_inputs"]["Wdot_mag"] for kk in range(anim_T)], axis=0)
+    # ipdb.set_trace()
 
     dt = 0.05
 
@@ -124,8 +124,9 @@ def main():
     def progress_callback(curr_frame: int, total_frames: int):
         pbar.update(1)
 
-    plot_dir = pkl_path.parent
-    path = plot_dir / "anim_hlfactor.mp4"
+    # plot_dir = pkl_path.parent
+    # path = plot_dir / "anim_hlfactor.mp4"
+    path = pkl_path.with_suffix(".mp4")
 
     pbar = tqdm.tqdm(total=anim_T)
     ani.save(path, progress_callback=progress_callback)

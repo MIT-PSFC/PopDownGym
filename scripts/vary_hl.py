@@ -14,9 +14,11 @@ from jaxrl.ppo import Collector, CollectorCfg, PPOEval
 from jaxrl.utils.jax_utils import jax2np
 
 
-def main(ckpt_dir: pathlib.Path):
+def main(ckpt_dir: pathlib.Path, name: str):
     rew_centers, shift_ranges, rew_min, rew_max = get_default_rew_bounds()
     n_constr = len(rew_centers)
+    pkl_path = pathlib.Path(__file__).parent / f"ppo_sens_hlfactor_{name}.pkl"
+    logger.info("Saving pkl to {}...".format(pkl_path))
 
     env, ppo, plot_dir = load_ppo(ckpt_dir, shift_ranges, rew_centers)
     env.shift_mult = 0.0
@@ -50,7 +52,6 @@ def main(ckpt_dir: pathlib.Path):
         eval_datas[envparam_val] = eval_data
 
     # Save the data.
-    pkl_path = pathlib.Path(__file__).parent / "ppo_sens_hlfactor.pkl"
     with open(pkl_path, "wb") as f:
         pickle.dump(eval_datas, f)
     logger.info("Saved pkl to {}!".format(pkl_path))
