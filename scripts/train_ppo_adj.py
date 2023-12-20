@@ -21,7 +21,7 @@ def main(wandb_name: str = None):
 
     logger.info("Constructing Env...")
     env_train = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers)
-    env_test = PDEnvAdj(shift_ranges=shift_ranges, offset=offset, limits=rew_centers, shift_mult=0)
+    env_test = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
     logger.info("Constructing Env... Done!")
     train_cfg = PPOTrainCfg(
         gae_lambda=0.95,
