@@ -7,9 +7,8 @@ from pop_down_gym.raptor.utils import (
     to_numpy,
 )
 import numpy as np
-import pandas as pd
-from rd_rl.raptor.init_raptor import init_matlab, init_sparc_rd
-from rd_rl.raptor.utils import (VWrapper, concat_simres, numpy_to_matlab,
+from pop_down_gym.raptor.init_raptor import init_matlab, init_sparc_rd
+from pop_down_gym.raptor.utils import (VWrapper, concat_simres, numpy_to_matlab,
                                 update_ustep)
 
 
@@ -145,7 +144,7 @@ class RaptorRDGym:
             ni_basis=ni_basis,
             ne_basis=ne_basis,
             wgauss=self.wgauss,
-            tau_n_factor=7.5,
+            tau_n_factor=9.0,
             main_ion_dilution=ni_vol_avg / ne_vol_avg,
         )
         self.Paux_max = 25e6 # TODO(allenw): hard-coded.
@@ -226,16 +225,24 @@ class RaptorRDGym:
         # Raptor includes Prad is Ploss, but the relevant quantity for the backtransition is generally
         # just loss through conduction. Thus, we subtract Prad from Ploss.
         Ploss = np.mean(out_prev['Ploss'][0][-self.rspgs:]) - np.mean(out_prev['Prad'][0][-self.rspgs:])
+
+        # Transition over one dt.
+        n_raptor_steps_transition = int(self.raptor_dt * self.rspgs / self.raptor_dt)
         if Ploss > PHL and self.currently_h_mode:
             pass
+        elif Ploss<=PHL and self.currently_h_mode:
+            self.vwrapper.hmode[self.raptor_iter : self.raptor_iter + n_raptor_steps_transition] = np.linspace(1, 0, n_raptor_steps_transition)
+            self.vwrapper.hmode[self.raptor_iter + n_raptor_steps_transition :] = 0
+
+            te_bc_ramp = np.linspace(self.config["hmode"]["params"]["te_rhoped"], self.config["hmode"]["params"]["te_rhoedge"], n_raptor_steps_transition)
+            self.vwrapper.te_bc[self.raptor_iter : self.raptor_iter + n_raptor_steps_transition] = te_bc_ramp
+            self.vwrapper.te_bc[self.raptor_iter + n_raptor_steps_transition :] = self.config["hmode"]["params"]["te_rhoedge"]
+
+            ti_bc_ramp = np.linspace(self.config["hmode"]["params"]["ti_rhoped"], self.config["hmode"]["params"]["ti_rhoedge"], n_raptor_steps_transition)
+            self.vwrapper.ti_bc[self.raptor_iter : self.raptor_iter + n_raptor_steps_transition] = ti_bc_ramp
+            self.vwrapper.ti_bc[self.raptor_iter + n_raptor_steps_transition :] = self.config["hmode"]["params"]["ti_rhoedge"]
         else:
-            self.vwrapper.hmode[self.raptor_iter :] = 0
-            self.vwrapper.te_bc[self.raptor_iter :] = self.config["hmode"]["params"][
-                "te_rhoedge"
-            ]
-            self.vwrapper.ti_bc[self.raptor_iter :] = self.config["hmode"]["params"][
-                "ti_rhoedge"
-            ]
+            pass
 
         vwrapper_step = self.vwrapper[self.raptor_iter : self.raptor_iter + self.rspgs]
 
@@ -325,8 +332,3 @@ class RaptorRDGym:
         raptor_out = self.raptor_out()
         self.eng_handle.workspace['out'] = raptor_out
         self.eng_handle.save(path, 'out', nargout=0)
-
-
-if __name__ == "__main__":
-    gym = RaptorRDGym("/home/awang/raptor", 1e-2, 5)  # dts are 0.05s.
-    gym.reset()

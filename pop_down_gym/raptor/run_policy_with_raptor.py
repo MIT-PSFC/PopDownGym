@@ -1,46 +1,50 @@
-
+import os
 import click
 import jax
 import jax.numpy as jnp
 import pandas as pd
-import equinox as eqx
-from stable_baselines3 import PPO
-import os
-import yaml
 import pop_down_gym
-from pop_down_gym.train import get_env_builder
 from pop_down_gym.raptor.raptor_rd_gym import RaptorRDGym
 from pop_down_gym.raptor.utils import convert_to_df
 from pop_down_gym.pd_gym import PopDownGym
-from pop_down_gym.scripts.train_es import MLP as ES_MLP
-from pop_down_gym.scripts.example_load_ppo_adj_ckpt import default_build_ppo
-from stable_baselines3.common.vec_env import DummyVecEnv
-import pandas as pd
+from pop_down_gym.pd_gym_jaxrl import default_build_ppo
 
 class PolicyInterface:
-    def __init__(self):
-        self.model, self.train_env = PolicyInterface.load_model_and_train_env()
-
-        self.train_env = vec_env.envs[0]
-        self.constraint_limits = self.train_env.stateless_env.reward_model.limits
-        if model_type == "PPO_SB3":
-            model = PPO.load(model_path, env=vec_env)
-            self.model_fn = lambda obs: model.predict(obs)[0]
-        elif model_type == "ES_DAWSON":
-            prng_key = jax.random.PRNGKey(0)
-            # Load the best policy trained using ES
-            hidden_dims = 512
-            hidden_layers = 4
-            prng_key, policy_key = jax.random.split(prng_key)
-            mlp = ES_MLP(policy_key, self.train_env.stateless_env.n_obs, hidden_layers, hidden_dims, self.train_env.stateless_env.n_actions)
-            mlp = eqx.tree_deserialise_leaves(model_path, mlp)                
-            self.model_fn = mlp
-        elif model_type == "PPO_OSO":
-            ppo, env, offset_dict, tmp_dir = default_build_ppo()
+    def __init__(self, model_path, model_type):
+        self.model_type = model_type
+        shift_dict = {
+            "beta_n": -1.0,
+            "li": 0.0,
+            "beta_p": -0.6,
+            "ng_frac": -0.9,
+        }
+        ppo, env, offset_dict, tmp_dir = default_build_ppo(shift_dict)
+        self.train_env = env.pd
+        self.constraint_limits = self.train_env.reward_model.limits
+        if model_type == "PPO_OSO":
             def model_fn(obs):
-                obs = self.train_env.stateless_env.flatten_obs(obs)
+                obs = self.train_env.flatten_obs(obs)
                 constraint_shifts = jnp.zeros(8)
-                return ppo.act(jnp.concatenate([obs, constraint_shifts]))
+                for key, val in shift_dict.items():
+                    # Get index of this key in the environment.
+                    key_list = list(self.constraint_limits.keys())
+                    idx = key_list.index(key)
+
+                    # Set the constraint shift in the policy input.
+                    constraint_shifts = constraint_shifts.at[idx].set(val)
+                action = ppo.act(jnp.concatenate([obs, constraint_shifts]))
+                unnormalized_action = self.train_env.dictify_and_unnormalize_action(action)
+                return unnormalized_action
+            self.model_fn = model_fn
+        elif model_type == "BASELINE":
+            def model_fn(obs):
+                unnormalized_action = {
+                    "dIp_dt": -2.0,
+                    "dPaux_dt": -2,
+                    "fueling19": 5.0,
+                    "dgs_dt": 0.25,
+                }
+                return unnormalized_action
             self.model_fn = model_fn
         else:
             raise ValueError("model_type must be one of PPO_SB3, ES_DAWSON, PPO_OSO")
@@ -55,22 +59,28 @@ class PolicyInterface:
     
     def state_to_action(self, train_env_state):
         obs = self.train_env.state_to_obs(train_env_state)
-        action = self.model.predict(obs)[0]
-        unnormalized_action = self.train_env.dictify_and_unnormalize_action(action)
-        return action, unnormalized_action
+        action = self.model_fn(obs)
+        return action
     
     def step_train_env(self, action):
         return self.train_env.step(action)
     
 
-def run_with_raptor_loop(raptor_gym, policy_interface, max_steps = 140):
-    actions = []
+def tree_transpose_to_arrays(list_of_trees):
+    """Convert a list of trees of identical structure into a single tree of arrays."""
+    # Concatenate along the first axis.
+    # Note we use concatenate instead of stack because stack can create new axes.
+    return jax.tree_map(lambda *xs: jnp.array(list(xs)), *list_of_trees)
+
+def run_with_raptor_loop(raptor_gym, policy_interface, max_steps = 140, smooth_length: int = 5):
+    logged_actions = []
+    action_buffer = []
     for i in range(max_steps):
         obs_for_pd_gym = raptor_gym.obs_for_pd_gym()
         # We have reached the goal.
         if obs_for_pd_gym["Ip_MA"] < 2.0:
             break
-        action, unnormalized_action = policy_interface.state_to_action(obs_for_pd_gym)
+        unnormalized_action = policy_interface.state_to_action(obs_for_pd_gym)
         
         raptor_action_input = {
             "dIp_dt": 1e6 * unnormalized_action["dIp_dt"],
@@ -78,20 +88,27 @@ def run_with_raptor_loop(raptor_gym, policy_interface, max_steps = 140):
             "fueling19": unnormalized_action["fueling19"],
             "dgs_dt": unnormalized_action["dgs_dt"],
         }
-        actions.append({"time": raptor_gym.time, **raptor_action_input})
-        raptor_gym.step(raptor_action_input)
+
+        # Perform smoothing of this action with past ones.
+        action_buffer.append(raptor_action_input)
+        action_buffer_tree_transposed = tree_transpose_to_arrays(action_buffer[-smooth_length:])
+
+        # Execute the smoothed action.
+        raptor_action_input_smoothed = jax.tree_map(lambda x: jnp.mean(x), action_buffer_tree_transposed)
+        raptor_gym.step(raptor_action_input_smoothed)
+        logged_actions.append({"time": raptor_gym.time, "gs": obs_for_pd_gym["gs"], "Paux": obs_for_pd_gym["Paux"], **raptor_action_input_smoothed})
     
     raptor_out = raptor_gym.raptor_out()
-    return raptor_out, actions
+    return raptor_out, logged_actions
 
 @click.command()
-@click.option("--model_path", type=str, default="/home/awang/Scratch/rd_rl/20231004_best/best_model.zip")
-@click.option("--model_type", type=str, default="PPO_SB3")
+@click.option("--model_path", type=str, default=os.path.join(os.path.dirname(__file__), "../../tmp/ppo_adj_ckpt/checkpoint"))
+@click.option("--model_type", type=str, default="PPO_OSO")
 @click.option("--raptor_path", type=str, default="/home/awang/raptor")
 def main(model_path, model_type, raptor_path):
     policy_interface = PolicyInterface(model_path=model_path, model_type=model_type)
-    gym_dt = policy_interface.train_env.stateless_env.dt
-    raptor_dt = 0.005
+    gym_dt = policy_interface.train_env.dt
+    raptor_dt = 0.01
 
     
     raptor_steps_per_gym_step = gym_dt / raptor_dt
@@ -101,14 +118,15 @@ def main(model_path, model_type, raptor_path):
 
     raptor_gym = RaptorRDGym(raptor_path, raptor_dt, raptor_steps_per_gym_step)
     raptor_gym.reset()
-    assert raptor_dt * raptor_steps_per_gym_step == policy_interface.train_env.stateless_env.dt
+    assert raptor_dt * raptor_steps_per_gym_step == policy_interface.train_env.dt
     raptor_out, actions = run_with_raptor_loop(raptor_gym, policy_interface)
     raptor_out_df = convert_to_df(raptor_out)
     df = pd.DataFrame(actions)
     df=df.set_index('time')
-    df=df.join(raptor_out_df,how='inner') 
+    df=df.join(raptor_out_df,how='outer')
     df.attrs['constraint_limits'] = policy_interface.constraint_limits
-    df.to_pickle("sim2sim.pkl")
+
+    df.to_pickle(os.path.join(pop_down_gym.ROOT_DIR, f"../tmp/sim2sim_{model_type}.pkl"))
 
 if __name__ == "__main__":
     main()
