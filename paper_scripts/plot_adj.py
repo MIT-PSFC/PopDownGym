@@ -51,7 +51,8 @@ def main(pkl_path: pathlib.Path):
     width_total = width_traj + width_space + width_constr
     width_ratios = [width_traj, width_space, width_constr]
     figsize = np.array([width_total, 1.2 * nconstr])
-    target_width = 5.35
+    # target_width = 5.35
+    target_width = 20.0
     figsize *= target_width / figsize[0]
     figsize_main = figsize * np.array([2, 1])
 

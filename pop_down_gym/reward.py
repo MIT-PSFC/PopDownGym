@@ -88,7 +88,7 @@ class RewardModel:
         sat_value = jnp.log(norm_value + 1) / jnp.log(2)
         clip_normsat_value = sat_value.clip(0.0, 3.0)
         slope, thresh = self.barrier["slope"], self.barrier["thresh"]
-        return jnp.logaddexp(0.0, slope * (clip_normsat_value - thresh))
+        return -jnp.logaddexp(0.0, slope * (clip_normsat_value - thresh))
 
     def reward_barrier_1(self, val: float, limit: float) -> float:
         """To enforce the constraint val < limit, we use a barrier function.
