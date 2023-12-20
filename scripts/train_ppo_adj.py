@@ -1,7 +1,9 @@
 import ipdb
 import jax.random as jr
+import typer
 from loguru import logger
 
+from jaxrl.helpers import get_default_rew_bounds
 from jaxrl.ppo import CollectorCfg, PPOCfg, PPOTrainCfg
 from jaxrl.ppo_trainer import train_ppo
 from jaxrl.utils.logging import set_logger_format
@@ -9,27 +11,17 @@ from jaxrl.utils.schedule import LinDecay
 from pop_down_gym.pd_gym_jaxrl import PDEnv, PDEnvAdj
 
 
-def main():
+def main(wandb_name: str = None):
     set_logger_format()
 
     key = jr.PRNGKey(54123)
+    rew_centers, shift_ranges, rew_min, rew_max = get_default_rew_bounds()
 
-    rew_bounds = {
-        "li": [2, 3],
-        "ng_frac": [0.5, 0.8],
-        "beta_n": [0.015, 0.028],
-        "beta_p": [0.25, 0.4],
-        "Bv_dot_mag": [0.2, 0.4],
-        "Wdot_mag": [20_000_000, 70_000_000],
-        "shafranov_coeff": [3.4, 3.6],
-        "iota95": [0.35, 0.45],
-    }
-    rew_centers = {k: 0.5 * (v[0] + v[1]) for k, v in rew_bounds.items()}
-    shift_ranges = {k: 0.5 * (v[1] - v[0]) for k, v in rew_bounds.items()}
+    offset = {"Wdot_mag": -0.5 * shift_ranges["Wdot_mag"]}
 
     logger.info("Constructing Env...")
     env_train = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers)
-    env_test = PDEnvAdj(shift_ranges=shift_ranges, limits=rew_centers, shift_mult=0)
+    env_test = PDEnvAdj(shift_ranges=shift_ranges, offset=offset, limits=rew_centers, shift_mult=0)
     logger.info("Constructing Env... Done!")
     train_cfg = PPOTrainCfg(
         gae_lambda=0.95,
@@ -55,9 +47,9 @@ def main():
         clip_grad=1.0,
     )
     collect_cfg = CollectorCfg(n_envs=2048, rollout_T=80, n_env_eval=128, rollout_T_eval=120)
-    train_ppo(key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_adj")
+    train_ppo(wandb_name, key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_adj")
 
 
 if __name__ == "__main__":
     with ipdb.launch_ipdb_on_exception():
-        main()
+        typer.run(main)
