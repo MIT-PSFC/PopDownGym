@@ -16,6 +16,7 @@ from jaxrl.ppo import Collector, CollectorCfg, PPOAlg, PPOCfg, PPOEval
 from jaxrl.utils.ckpt_manager import get_checkpointer, get_ckpt_manager_sync
 from jaxrl.utils.jax_types import PRNGKey
 from jaxrl.utils.jax_utils import jax2np
+from pop_down_gym.pd_gym_jaxrl import PDEnvAdj
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.reward import RewardModel
 
@@ -112,7 +113,10 @@ def train_ppo(
 
             ##########################################
             # Plot
-            plot(idx, env_train.pd.reward_model, eval_data, plot_dir)
+            reward_model = env_test.pd.reward_model
+            if isinstance(env_test, PDEnvAdj):
+                reward_model = env_test.get_reward_model()
+            plot(idx, reward_model, eval_data, plot_dir)
             logger.info("Plot... Done!")
             ##########################################
 

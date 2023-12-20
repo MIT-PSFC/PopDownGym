@@ -131,20 +131,26 @@ class PDEnvAdj(Env):
         obs_priv = jnp.concatenate([obs, shift_obs, params_vec], axis=0)
         return obs_priv
 
+    def get_reward_model(self, shifts: dict[str, FloatScalar] = None) -> RewardModel:
+        if shifts is None:
+            shifts = self.offset
+
+        params = self.pd.reward_model.params.copy()
+        params["limits"] = params["limits"].copy()
+        for k, v in shifts.items():
+            assert k in params["limits"]
+            params["limits"][k] += v
+        return RewardModel(params)
+
     def step_env(self, key: PRNGKey, state: PDAdjState, action) -> StepOutput:
         obs_tree, reward, terminated, truncated, info = self.pd.step(state.time, state.params, state.state, action)
         terminated = info["out_of_bounds"] | info["hit_goal"]
         new_state = PDAdjState(info["time"], state.params, info["state"], state.shifts)
 
         # Recompute the reward.
-        unnormalized_action = self.pd.dictify_and_unnormalize_action(action)
+        reward_model = self.get_reward_model(state.shifts)
 
-        params = self.pd.reward_model.params.copy()
-        params["limits"] = params["limits"].copy()
-        for k, v in state.shifts.items():
-            assert k in params["limits"]
-            params["limits"][k] += v
-        reward_model = RewardModel(params)
+        unnormalized_action = self.pd.dictify_and_unnormalize_action(action)
         reward, reward_terms = reward_model.reward(info["reward_inputs"], unnormalized_action)
 
         info_ = {k: info[k] for k in ["time", "reward_inputs", "reward_terms", "hit_goal", "out_of_bounds"]}
