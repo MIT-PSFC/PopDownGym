@@ -9,6 +9,7 @@ reward:
     shafranov_coeff: 3.5
     iota95: 0.4 # Keep q95 > 2.5.
   barrier:
+    use_new: true
     slope: 100.0
     thresh: 0.95
   ip_ma:

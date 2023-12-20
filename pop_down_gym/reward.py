@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+from loguru import logger
 
 
 def sigmoid(x: float, c1: float, c2: float) -> float:
@@ -22,6 +23,10 @@ class RewardModel:
         self.limits = reward_params["limits"]
         self.barrier = reward_params["barrier"]
         self.ip_ma = reward_params["ip_ma"]
+
+        self.use_new_barrier = self.barrier["use_new"]
+        if self.use_new_barrier:
+            logger.info("Using new barrier!")
 
     def reward(self, reward_inputs, action):
         reward = 0.0
@@ -73,6 +78,19 @@ class RewardModel:
         return reward
 
     def reward_barrier(self, val: float, limit: float) -> float:
+        if self.use_new_barrier:
+            return self.reward_barrier_2(val, limit)
+        else:
+            return self.reward_barrier_1(val, limit)
+
+    def reward_barrier_2(self, val: float, limit: float) -> float:
+        norm_value = jnp.abs(val / limit)
+        sat_value = jnp.log(norm_value + 1) / jnp.log(2)
+        clip_normsat_value = sat_value.clip(0.0, 3.0)
+        slope, thresh = self.barrier["slope"], self.barrier["thresh"]
+        return jnp.logaddexp(0.0, slope * (clip_normsat_value - thresh))
+
+    def reward_barrier_1(self, val: float, limit: float) -> float:
         """To enforce the constraint val < limit, we use a barrier function.
         The general idea is to have "risk" go from 0 to 1.0 as val approaches limit.
         We first normalize the value to the limit, then apply a sigmoid function.

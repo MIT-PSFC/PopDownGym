@@ -1,56 +1,38 @@
+import copy
 import pathlib
 import pickle
 
 import ipdb
+import jax
+import jax.random as jr
 import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
 import typer
+from loguru import logger
 from matplotlib.animation import FuncAnimation
 from matplotlib.collections import LineCollection
 
-from jaxrl.helpers import get_default_rew_bounds
-from jaxrl.ppo import PPOEval
+from jaxrl.helpers import get_default_rew_bounds, load_ppo
+from jaxrl.ppo import Collector, CollectorCfg, PPOEval
+from jaxrl.utils.jax_utils import jax2np
+from plot_utils.plot_utils import get_segs
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 
-def get_segs(bT_rew, bT_valid_mask, dt: float):
-    b_segs = []
-    for bb, T_r in enumerate(bT_rew):
-        # Truncate to valid only.
-        if not np.all(bT_valid_mask[bb]):
-            idx_first_invalid = bT_valid_mask[bb].argmin()
-            T_r = T_r[:idx_first_invalid]
-
-        T = len(T_r)
-        T_ts = dt * np.arange(T)
-        # (T, 2)
-        segs = np.stack([T_ts, T_r], axis=1)
-        b_segs.append(segs)
-    return b_segs
-
-
-def main(pkl_path: pathlib.Path):
-    rew_centers, shift_ranges, rew_min, rew_max = get_default_rew_bounds()
-
-    plot_dir = pkl_path.parent
-
+def main():
+    pkl_path = pathlib.Path(__file__).parent / "ppo_sens_hlfactor.pkl"
     with open(pkl_path, "rb") as f:
-        eval_datas, interp_fracs = pickle.load(f)
+        eval_datas: dict[float, PPOEval] = pickle.load(f)
+    ####################################################################################################
+    rew_centers, shift_ranges, rew_min, rew_max = get_default_rew_bounds()
+    anim_T = len(eval_datas)
 
-    datas: list[PPOEval] = eval_datas
-    # key = "beta_p"
-    key = "li"
+    constr_ub = rew_centers
+    Ip_MA_tgt = 2.0
 
-    anim_T = len(datas)
-
-    interp_fracs = np.array(interp_fracs)
-    offsets = interp_fracs * shift_ranges[key]
-
-    constr_labels = PopDownGymStateless.constr_labels()
-    nconstr = len(constr_labels)
-
-    dt = 0.05
+    hl_factors = list(eval_datas.keys())
+    datas = list(eval_datas.values())
 
     ylims = {
         "Ip_MA": [1.2e00, 9.18e00],
@@ -64,11 +46,18 @@ def main(pkl_path: pathlib.Path):
         "iota95": [0.05, 0.25],
     }
 
-    constr_ub = rew_centers
-    Ip_MA_tgt = 2.0
+    KbT_Wdot_mags = np.stack([datas[kk].bT_info["reward_inputs"]["Wdot_mag"] for kk in range(anim_T)], axis=0)
+    ipdb.set_trace()
+
+    dt = 0.05
+
+    constr_labels = PopDownGymStateless.constr_labels()
+    nconstr = len(constr_labels)
 
     figsize = np.array([6, 1.2 * nconstr])
-    fig, axes = plt.subplots(nconstr, layout="constrained", figsize=figsize, sharex=True, dpi=350)
+    # dpi = 350
+    dpi = 200
+    fig, axes = plt.subplots(nconstr, layout="constrained", figsize=figsize, sharex=True, dpi=dpi)
     line_cols, spans = [], []
     ax: plt.Axes
     for ii, ax in enumerate(axes):
@@ -102,8 +91,10 @@ def main(pkl_path: pathlib.Path):
         if label == "Ip_MA":
             ax.axhspan(ymin, Ip_MA_tgt, color="C5", alpha=0.2)
 
+    hl_text = axes[0].set_title("hl_factor: {}".format(0))
+
     def init_fn() -> list[plt.Artist]:
-        return [*line_cols, *spans]
+        return [*line_cols, *spans, hl_text]
 
     def update(kk: int) -> list[plt.Artist]:
         for ii, ax in enumerate(axes):
@@ -118,14 +109,12 @@ def main(pkl_path: pathlib.Path):
             if label in constr_ub:
                 ymin, ymax = ax.get_ylim()
                 constr_ub_ = constr_ub[label]
-
-                if label == key:
-                    constr_ub_ = constr_ub_ + offsets[kk]
-
                 ymin_ = min(ymax, constr_ub_)
                 spans[ii].set_xy([[0, ymin_], [1, ymin_], [1, ymax], [0, ymax]])
 
-        return [*line_cols, *spans]
+        hl_text.set_text("hl_factor: {:.3f}".format(hl_factors[kk]))
+
+        return [*line_cols, *spans, hl_text]
 
     fps = 30.0
     spf = 1 / fps
@@ -135,7 +124,8 @@ def main(pkl_path: pathlib.Path):
     def progress_callback(curr_frame: int, total_frames: int):
         pbar.update(1)
 
-    path = plot_dir / "anim_{}.mp4".format(key)
+    plot_dir = pkl_path.parent
+    path = plot_dir / "anim_hlfactor.mp4"
 
     pbar = tqdm.tqdm(total=anim_T)
     ani.save(path, progress_callback=progress_callback)
