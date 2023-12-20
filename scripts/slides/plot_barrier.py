@@ -14,7 +14,7 @@ def _cost_barrier(val: float, limit: float):
     norm_value = val / limit
     # clip_norm_value = np.clip(norm_value, 0.0, 1.1)
     clip_norm_value = np.clip(np.log(norm_value + 1) / np.log(2), 0.0, 1.0)
-    return -np.log(1 - _sig(clip_norm_value, 100, 0.95))
+    return np.log(1 - _sig(clip_norm_value, 100, 0.95))
 
 
 def _cost_barrier2(val, limit: float):
@@ -23,7 +23,7 @@ def _cost_barrier2(val, limit: float):
     clip_norm_value = sat_value.clip(0.0, 3.0)
     c1 = 100.0
     c2 = 0.95
-    return np.logaddexp(0.0, c1 * (clip_norm_value - c2))
+    return -np.logaddexp(0.0, c1 * (clip_norm_value - c2))
 
 
 def main():
