@@ -47,7 +47,8 @@ def main(wandb_name: str = None):
         clip_grad=1.0,
     )
     collect_cfg = CollectorCfg(n_envs=2048, rollout_T=80, n_env_eval=128, rollout_T_eval=120)
-    train_ppo(wandb_name, key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_adj")
+    n_iters = 50_000
+    train_ppo(wandb_name, key, env_train, env_test, ppo_cfg, collect_cfg, project_name="pdg_ppo_adj", n_iters=n_iters)
 
 
 if __name__ == "__main__":

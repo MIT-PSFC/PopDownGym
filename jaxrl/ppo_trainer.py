@@ -48,7 +48,7 @@ def train_ppo(
     project_name: str,
     warmstart: Optional[pathlib.Path] = None,
     make_ppo: Callable = None,
-    n_iters:int=10_000
+    n_iters: int = 10_000,
 ):
 
     key_ppo, key_collect = jr.split(key, 2)
