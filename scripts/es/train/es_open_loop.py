@@ -16,6 +16,7 @@ import evosax as es
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from jaxtyping import Array, Shaped
 from tqdm import tqdm
 
 import wandb
@@ -30,12 +31,12 @@ from scripts.es.train.es_closed_loop import (
 
 class CubicTrajectory(eqx.Module):
     controls: jax.Array
-    time_scale: float
+    # time_scale: float
 
-    def __init__(self, key, n_control_pts, output_dimension, initial_time_scale):
+    def __init__(self, key, n_control_pts, output_dimension, initial_time_scale=5.0):
         # Generate some random initial control points
         self.controls = jax.random.normal(key, (output_dimension, n_control_pts))
-        self.time_scale = initial_time_scale
+        # self.time_scale = initial_time_scale
 
     def __call__(self, t):
         """
@@ -45,7 +46,8 @@ class CubicTrajectory(eqx.Module):
             t: time in seconds
         """
         # Normalize time and reshape
-        t = t.reshape(1) / self.time_scale
+        # t = t.reshape(1) / (jnp.abs(self.time_scale) + 0.1)
+        t = t.reshape(1) / 5.0
 
         ts = jnp.linspace(0.0, 1.0, self.controls.shape[1])
         f_ctrl = cubic_interp(ts, self.controls.T)
@@ -109,7 +111,7 @@ def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
         scan_step, (initial_state, initial_obs, 0.0, False), None, length=steps
     )
 
-    return rewards.mean(), states, t, reward_inputs, rewards, hit_goal, actions
+    return rewards.mean(), states, t, reward_inputs, rewards, hit_goal, actions, params
 
 
 def train_es_open_loop(
@@ -268,6 +270,7 @@ def train_es_open_loop(
                 _,
                 hit_goal_test,
                 actions_test,
+                _,
             ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_trajectory)
 
             plot_test_set_trajectories(
@@ -308,6 +311,7 @@ def train_es_open_loop(
         _,
         _,
         _,
+        _,
     ) = jax.vmap(rollout_train, in_axes=(0, None))(keys, best_trajectory)
 
     # Get the state trajectories, reward inputs, and reward distribution on the full
@@ -324,6 +328,7 @@ def train_es_open_loop(
         _,
         hit_goal_test,
         actions_test,
+        _,
     ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_trajectory)
 
     # Save experiment parameters as a json
@@ -341,7 +346,11 @@ def train_es_open_loop(
     }
     config_path = os.path.join(save_path, "config.json")
     with open(config_path, "w") as f:
-        json.dump(config, f)
+        json.dump(
+            config,
+            f,
+            default=lambda x: x.tolist() if isinstance(x, Shaped[Array, "..."]) else x,
+        )
 
     # Save the best policy
     eqx.tree_serialise_leaves(

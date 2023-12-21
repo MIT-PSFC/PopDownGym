@@ -151,6 +151,18 @@ def plot_test_set_trajectories(
     constr_ub = env.reward_model.limits
     Ip_MA_tgt = 2.0
 
+    axis_labels_latex = {
+        "Ip_MA": r"$I_p$ (MA)",
+        "Bv_dot_mag": r"$\frac{d}{dt}B_v$ (Ts$^{-1}$)",
+        "Wdot_mag": r"$\frac{d}{dt}W$ (Js$^{-1}$)",
+        "beta_n": r"$\beta_n$",
+        "beta_p": r"$\beta_p$",
+        "li": r"$l_i$",
+        "ng_frac": r"$n_{g, frac}$",
+        "shafranov_coeff": r"$\Gamma$",
+        "iota95": r"$\iota_{95}$",
+    }
+
     figsize = np.array([6, 1.2 * nconstr])
     fig, axes = plt.subplots(
         nconstr, layout="constrained", figsize=figsize, sharex=True, dpi=350
@@ -159,7 +171,11 @@ def plot_test_set_trajectories(
         label = constr_labels[i]
         bT_rew_input = reward_inputs[label]
         ax.plot(t.T, bT_rew_input.T, color="C1", lw=0.5, alpha=0.4)
-        ax.set_ylabel(label, rotation=0, ha="right")
+        ax.set_ylabel(
+            axis_labels_latex[label],
+            # rotation=0,
+            # ha="right",
+        )
 
         # Set the limits.
         ax.autoscale_view()
@@ -187,6 +203,8 @@ def plot_test_set_trajectories(
 
     if use_wandb:
         wandb.log({"Test env trajectory": fig}, commit=commit_wandb)
+
+    plt.close(fig)
 
 
 def plot_hit_time_vs_reward(t, hit_goal, rewards, save_path=None, commit_wandb=False):
