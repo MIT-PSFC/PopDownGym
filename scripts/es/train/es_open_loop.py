@@ -22,9 +22,11 @@ from tqdm import tqdm
 import wandb
 from contrax.controls.controls import cubic_interp
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
-from scripts.es.train.es_closed_loop import (plot_action_trajectory,
-                                             plot_hit_time_vs_reward,
-                                             plot_test_set_trajectories)
+from scripts.es.train.es_closed_loop import (
+    plot_action_trajectory,
+    plot_hit_time_vs_reward,
+    plot_test_set_trajectories,
+)
 
 
 class MLP(eqx.Module):
@@ -52,6 +54,7 @@ class Spline(eqx.Module):
     args:
         p: the array of control points for the Bezier curve
     """
+
     p: jax.Array
 
     def __init__(self, key, degree, dimension):
@@ -77,7 +80,7 @@ class Spline(eqx.Module):
     def __call__(self, t):
         """
         Return the point along the trajectory at the given time.
-        
+
         Args:
             t: the normalized time to evaluate the spline at (between 0 and 1)
         """
@@ -90,7 +93,7 @@ class Spline(eqx.Module):
 
         # Clamp
         return jax.nn.tanh(y)
-    
+
 
 class CubicTrajectory(eqx.Module):
     controls: jax.Array
@@ -102,7 +105,7 @@ class CubicTrajectory(eqx.Module):
     def __call__(self, t):
         """
         Return a cubic interpolation of the trajectory at the given time
-        
+
         Args:
             t: the normalized time to evaluate the trajectory at (between 0 and 1)
         """
@@ -186,6 +189,9 @@ def train_es_open_loop(
     # Set the seed for reproducibility
     prng_key = jax.random.PRNGKey(0)
 
+    # Set plotting styles
+    plt.style.use("ggplot")
+
     # Load the environment
     env = PopDownGymStateless.create_env()
 
@@ -202,7 +208,7 @@ def train_es_open_loop(
 
     # Also create a test env with full uncertainty
     test_env = PopDownGymStateless.create_env()
-    rollout_test = lambda key, traj: rollout_open_loop(
+    rollout_test = lambda key, traj: rollout_open_loop(  # noqa
         key, test_env, traj, simulation_steps
     )
 
@@ -244,13 +250,13 @@ def train_es_open_loop(
     os.makedirs(save_path, exist_ok=True)
 
     # Define the fitness function
-    fitness_single_rollout = lambda key, traj: rollout_open_loop(key, env, traj)[0]
+    fitness_single_rollout = lambda key, traj: rollout_open_loop(key, env, traj)[0]  # noqa
 
     def fitness_multiple_rollouts(key, traj):
         keys = jax.random.split(key, num_eval_rollouts)
         return jax.vmap(fitness_single_rollout, in_axes=(0, None))(keys, traj)
 
-    mean_fitness_multiple_rollouts = lambda key, traj: fitness_multiple_rollouts(
+    mean_fitness_multiple_rollouts = lambda key, traj: fitness_multiple_rollouts(  # noqa
         key, traj
     ).mean()
 
@@ -363,7 +369,7 @@ def train_es_open_loop(
     # Get the state trajectories, reward inputs, and reward distribution on the training
     # uncertainty range
     keys = jax.random.split(prng_key, num_eval_rollouts)
-    rollout_train = lambda key, traj: rollout_open_loop(
+    rollout_train = lambda key, traj: rollout_open_loop(  # noqa
         key, env, traj, simulation_steps
     )
     (
@@ -374,14 +380,12 @@ def train_es_open_loop(
         _,
         _,
         _,
-    ) = jax.vmap(
-        rollout_train, in_axes=(0, None)
-    )(keys, best_trajectory)
+    ) = jax.vmap(rollout_train, in_axes=(0, None))(keys, best_trajectory)
 
     # Get the state trajectories, reward inputs, and reward distribution on the full
     # uncertainty range
     test_env = PopDownGymStateless.create_env()
-    rollout_test = lambda key, traj: rollout_open_loop(
+    rollout_test = lambda key, traj: rollout_open_loop(  # noqa
         key, test_env, traj, simulation_steps
     )
     (
@@ -441,7 +445,9 @@ def train_es_open_loop(
     wandb.save(os.path.join(save_path, "test_env_performance.eqx"))
 
     # Plot the trajectories on the test set
-    plot_test_set_trajectories(env, t_test, reward_inputs_test, save_path, commit_wandb=True)
+    plot_test_set_trajectories(
+        env, t_test, reward_inputs_test, save_path, commit_wandb=True
+    )
 
     # Plot trajectory in unnormalized action space
     plot_action_trajectory(env, t_test, actions_test, save_path, commit_wandb=True)

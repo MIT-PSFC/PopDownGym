@@ -132,12 +132,14 @@ def plot_action_trajectory(
     wandb.log({"Feedforward trajectory": fig}, commit=commit_wandb)
 
 
-def plot_test_set_trajectories(env, t, reward_inputs, save_path=None, commit_wandb=False):
+def plot_test_set_trajectories(
+    env, t, reward_inputs, save_path=None, commit_wandb=False, use_wandb=True
+):
     constr_labels = PopDownGymStateless.constr_labels()
     nconstr = len(constr_labels)
     ylims = {
         "Ip_MA": [1.2e00, 9.18e00],
-        "Bv_dot_mag": [5.14e-02, 3.30e-01],
+        "Bv_dot_mag": [5.14e-02, 4.00e-01],
         "Wdot_mag": [-1.42e06, 4.93e07],
         "beta_n": [1.25e-03, 1.17e-02],
         "beta_p": [6.96e-02, 4.57e-01],
@@ -183,7 +185,8 @@ def plot_test_set_trajectories(env, t, reward_inputs, save_path=None, commit_wan
     if save_path is not None:
         plt.savefig(os.path.join(save_path, "test_env_performance.png"))
 
-    wandb.log({"Test env trajectory": fig}, commit=commit_wandb)
+    if use_wandb:
+        wandb.log({"Test env trajectory": fig}, commit=commit_wandb)
 
 
 def plot_hit_time_vs_reward(t, hit_goal, rewards, save_path=None, commit_wandb=False):
@@ -461,7 +464,9 @@ def train_es_closed_loop(
     wandb.save(os.path.join(save_path, "test_env_performance.eqx"))
 
     # Plot the trajectories on the test set
-    plot_test_set_trajectories(env, t_test, reward_inputs_test, save_path, commit_wandb=True)
+    plot_test_set_trajectories(
+        env, t_test, reward_inputs_test, save_path, commit_wandb=True
+    )
 
     # Plot trajectory in unnormalized action space
     plot_action_trajectory(env, t_test, actions_test, save_path, commit_wandb=True)
