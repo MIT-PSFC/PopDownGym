@@ -8,6 +8,7 @@ Sweep a range of uncertainties (width of parameter bounds). For each:
     - Save the policy, trajectories, reward inputs, the reward distributions over both
         test sets.
 """
+import json
 import os
 
 import equinox as eqx
@@ -15,8 +16,6 @@ import evosax as es
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
-from scipy.special import binom
 from tqdm import tqdm
 
 import wandb
@@ -29,86 +28,25 @@ from scripts.es.train.es_closed_loop import (
 )
 
 
-class MLP(eqx.Module):
-    layers: list
-
-    def __init__(self, key, hidden_layers, hidden_dims, output_dims):
-        keys = jax.random.split(key, hidden_layers)
-        self.layers = [eqx.nn.Linear(1, hidden_dims, key=keys[0])]
-        for key in keys[1:-1]:
-            self.layers.append(eqx.nn.Linear(hidden_dims, hidden_dims, key=key))
-        self.layers.append(eqx.nn.Linear(hidden_dims, output_dims, key=keys[-1]))
-
-    def __call__(self, x):
-        for layer in self.layers[:-1]:
-            x = jax.nn.relu(layer(x))
-        return jax.nn.tanh(self.layers[-1](x))
-
-
-class Spline(eqx.Module):
-    """
-    A fixed-degree Bezier curve function of time.
-
-    Time is normalized to [0, 1]
-
-    args:
-        p: the array of control points for the Bezier curve
-    """
-
-    p: jax.Array
-
-    def __init__(self, key, degree, dimension):
-        # Generate some random initial control points
-        self.p = jax.random.normal(key, (degree, dimension))
-
-    @property
-    def n(self):
-        """Return the degree of this Bezier curve"""
-        return self.p.shape[0] - 1
-
-    @property
-    def i(self):
-        """Return the degree indices"""
-        return np.arange(self.n + 1)
-
-    @property
-    def coefficients(self):
-        """Return the degree indices"""
-        return binom(self.n, self.i)
-
-    @jax.jit
-    def __call__(self, t):
-        """
-        Return the point along the trajectory at the given time.
-
-        Args:
-            t: the normalized time to evaluate the spline at (between 0 and 1)
-        """
-        # Bezier curves have an explicit form
-        # see https://en.wikipedia.org/wiki/B%C3%A9zier_curve
-        y = jnp.sum(
-            self.coefficients * (1 - t) ** (self.n - self.i) * t**self.i * self.p.T,
-            axis=-1,
-        )
-
-        # Clamp
-        return jax.nn.tanh(y)
-
-
 class CubicTrajectory(eqx.Module):
     controls: jax.Array
+    time_scale: float
 
-    def __init__(self, key, n_control_pts, output_dimension):
+    def __init__(self, key, n_control_pts, output_dimension, initial_time_scale):
         # Generate some random initial control points
         self.controls = jax.random.normal(key, (output_dimension, n_control_pts))
+        self.time_scale = initial_time_scale
 
     def __call__(self, t):
         """
         Return a cubic interpolation of the trajectory at the given time
 
         Args:
-            t: the normalized time to evaluate the trajectory at (between 0 and 1)
+            t: time in seconds
         """
+        # Normalize time and reshape
+        t = t.reshape(1) / self.time_scale
+
         ts = jnp.linspace(0.0, 1.0, self.controls.shape[1])
         f_ctrl = cubic_interp(ts, self.controls.T)
         y = f_ctrl.evaluate(t).reshape(self.controls.shape[0])
@@ -118,7 +56,14 @@ class CubicTrajectory(eqx.Module):
 
 
 def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
-    """Simulate the trajectory in the environment."""
+    """Simulate the trajectory in the environment.
+
+    Args:
+        prng_key: random key
+        env: the environment
+        trajectory_fn: a function that takes in time and returns an action
+        steps: number of steps to simulate
+    """
     # Sample random parameters and initial state
     params, initial_state, initial_obs, _ = env.reset(prng_key)
 
@@ -131,7 +76,7 @@ def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
         obs = jax.numpy.hstack((obs["continuous"], obs["Hmode"]))
 
         # Get the action
-        action = trajectory_fn(t.reshape(1) / (steps * env.dt))
+        action = trajectory_fn(t)
 
         # Step the environment
         obs, reward, terminated, _, info = env.step(t, params, state, action)
@@ -172,8 +117,6 @@ def train_es_open_loop(
     hidden_dims: int = 512,
     hidden_layers: int = 2,
     num_control_points: int = 10,
-    use_spline=False,
-    use_cubic=True,
     simulation_steps: int = 100,
     num_generations: int = 500,
     top_k: int = 5,
@@ -182,10 +125,6 @@ def train_es_open_loop(
     lrate_init: float = 0.1,
     plot_every: int = 10,
 ):
-    # Check inputs
-    if use_spline and use_cubic:
-        raise ValueError("Can only use one of spline or cubic trajectories")
-
     # Set the seed for reproducibility
     prng_key = jax.random.PRNGKey(0)
 
@@ -213,22 +152,15 @@ def train_es_open_loop(
     )
 
     # Init wandb and save hyperparams
-    if use_spline:
-        label = "spline"
-    elif use_cubic:
-        label = "cubic"
-    else:
-        label = "mlp"
-
+    label = "sparse" if env.reward_model.sparse else "dense"
+    label += "-cubic"
     wandb.init(
         project="popdown",
-        name=f"es-open-loop-dense-noterminate-{label}",
+        name=f"es-open-loop-{label}",
         config={
             "hidden_dims": hidden_dims,
             "hidden_layers": hidden_layers,
             "num_control_points": num_control_points,
-            "use_spline": use_spline,
-            "use_cubic": use_cubic,
             "simulation_steps": simulation_steps,
             "num_generations": num_generations,
             "top_k": top_k,
@@ -243,7 +175,7 @@ def train_es_open_loop(
     save_path = os.path.join(
         "tmp",
         "es",
-        f"open_loop_dense-noterminate_{label}",
+        f"open_loop_{label}",
         f"uncertainty_{uncertainty_size:.2f}",
         f"lr_{lrate_init:.1e}",
     )
@@ -275,13 +207,9 @@ def train_es_open_loop(
             )(key, population)
 
     prng_key, policy_key = jax.random.split(prng_key)
-    if use_spline:
-        initial_traj = Spline(policy_key, num_control_points, env.n_actions)
-    elif use_cubic:
-        initial_traj = CubicTrajectory(policy_key, num_control_points, env.n_actions)
-    else:
-        # Create an MLP to represent the trajectory
-        initial_traj = MLP(policy_key, hidden_layers, hidden_dims, env.n_actions)
+    initial_traj = CubicTrajectory(
+        policy_key, num_control_points, env.n_actions, env.time_limit
+    )
 
     # Set up ES
     param_reshaper = es.ParameterReshaper(initial_traj)
@@ -398,21 +326,22 @@ def train_es_open_loop(
         actions_test,
     ) = jax.vmap(rollout_test, in_axes=(0, None))(keys, best_trajectory)
 
-    # Save experiment parameters
-    eqx.tree_serialise_leaves(
-        os.path.join(save_path, "config.eqx"),
-        {
-            "simulation_steps": simulation_steps,
-            "num_generations": num_generations,
-            "top_k": top_k,
-            "popsize": popsize,
-            "num_eval_rollouts": num_eval_rollouts,
-            "lrate_init": lrate_init,
-            "reward_model": env.reward_model.params,
-            "uncertainty_size": uncertainty_size,
-            "uncertainty_set": env.random_param_ranges,
-        },
-    )
+    # Save experiment parameters as a json
+    config = {
+        "num_control_points": num_control_points,
+        "simulation_steps": simulation_steps,
+        "num_generations": num_generations,
+        "top_k": top_k,
+        "popsize": popsize,
+        "num_eval_rollouts": num_eval_rollouts,
+        "lrate_init": lrate_init,
+        "reward_model": env.reward_model.params,
+        "uncertainty_size": uncertainty_size,
+        "uncertainty_set": env.random_param_ranges,
+    }
+    config_path = os.path.join(save_path, "config.json")
+    with open(config_path, "w") as f:
+        json.dump(config, f)
 
     # Save the best policy
     eqx.tree_serialise_leaves(
