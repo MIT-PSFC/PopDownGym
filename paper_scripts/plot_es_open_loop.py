@@ -16,17 +16,12 @@ from scripts.es.train.es_open_loop import CubicTrajectory, rollout_open_loop
 
 def max_constraint_violation(reward_inputs, upper_bounds):
     """Compute the maximum constraint violation."""
-    max_reward_inputs = jax.tree_map(lambda x: x.max(axis=-1), reward_inputs)
-
     total_violation = 0.0
     for key in upper_bounds:
-        violation = jax.lax.cond(
-            max_reward_inputs[key] >= upper_bounds[key] * 1.1,
-            lambda _: env.reward_model.params["hit_barrier_reward"],
-            lambda _: 0.0,
-            None,
-        )
-        total_violation += violation
+        violation = (reward_inputs[key] >= upper_bounds[key]) * env.reward_model.params[
+            "hit_barrier_reward"
+        ]
+        total_violation += violation.mean()
 
     return total_violation
 
@@ -58,31 +53,6 @@ def plot_parameters_vs_constraint_violation(env, reward_inputs, params, save_dir
         key: (value - param_ranges[key][0]) / param_ranges[key][1]
         for key, value in params.items()
     }
-
-    # # Create a dataframe for each parameter
-    # df = pd.concat(
-    #     [
-    #         pd.DataFrame(
-    #             {
-    #                 "Parameter": param,
-    #                 "Value (normalized)": value,
-    #                 "Max. constraint violation": violation,
-    #             }
-    #         )
-    #         for param, value in normalized_params.items()
-    #     ]
-    # )
-
-    # # Plot
-    # plt.style.use("ggplot")
-    # ax = sns.swarmplot(
-    #     x="Value (normalized)",
-    #     y="Parameter",
-    #     data=df,
-    #     hue="Max. constraint violation",
-    #     legend="brief",
-    # )
-    # sns.move_legend(ax, "center left", bbox_to_anchor=(1, 1))
 
     df = pd.DataFrame(
         {key: value for key, value in normalized_params.items()}
@@ -121,7 +91,7 @@ if __name__ == "__main__":
     # Load the trajectory
     prng_key, subkey = jax.random.split(prng_key)
     initial_traj = CubicTrajectory(subkey, num_control_points, env.n_actions)
-    results_dir = "tmp/es/open_loop_dense-cubic/uncertainty_1.00/lr_1.0e-01"
+    results_dir = "tmp/es/open_loop_dense-cubic-tuned/uncertainty_1.00/lr_1.0e-01"
     best_trajectory = eqx.tree_deserialise_leaves(
         os.path.join(results_dir, "best_trajectory.eqx"), initial_traj
     )

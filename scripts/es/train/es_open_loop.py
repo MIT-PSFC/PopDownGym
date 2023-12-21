@@ -90,7 +90,7 @@ def rollout_open_loop(prng_key, env, trajectory_fn, steps=100):
         next_time = jax.lax.cond(terminated, lambda _: t, lambda _: info["time"], None)
 
         # If we've already terminated (last step), don't update the reward
-        # reward = jax.lax.cond(done, lambda _: 0.0, lambda _: reward, None)
+        reward = jax.lax.cond(done, lambda _: 0.0, lambda _: reward, None)
         done = jnp.logical_or(done, terminated)
 
         # prepare the carry for the next iteration
@@ -120,7 +120,7 @@ def train_es_open_loop(
     hidden_layers: int = 2,
     num_control_points: int = 10,
     simulation_steps: int = 100,
-    num_generations: int = 500,
+    num_generations: int = 250,
     top_k: int = 5,
     popsize: int = 256,
     num_eval_rollouts: int = int(1e3),
@@ -155,7 +155,7 @@ def train_es_open_loop(
 
     # Init wandb and save hyperparams
     label = "sparse" if env.reward_model.sparse else "dense"
-    label += "-cubic"
+    label += "-cubic-tuned"
     wandb.init(
         project="popdown",
         name=f"es-open-loop-{label}",
