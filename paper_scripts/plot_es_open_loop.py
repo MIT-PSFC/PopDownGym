@@ -5,6 +5,7 @@ import os
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -14,21 +15,25 @@ from scripts.es.train.es_closed_loop import plot_test_set_trajectories
 from scripts.es.train.es_open_loop import CubicTrajectory, rollout_open_loop
 
 
-def constraint_violation(reward_inputs, upper_bounds):
+def max_constraint_violation_frac(reward_inputs, upper_bounds):
     """Compute the maximum constraint violation."""
-    total_violation = 0.0
-    for key in upper_bounds:
-        violation = (reward_inputs[key] >= upper_bounds[key]) * env.reward_model.params[
-            "hit_barrier_reward"
-        ]
-        total_violation += violation.mean()
-
-    return total_violation
+    max_reward_inputs = jax.tree_util.tree_map(
+        lambda x: jnp.max(x, axis=-1), reward_inputs
+    )
+    constraint_values = {
+        key: max_reward_inputs[key] - upper_bounds[key] for key in upper_bounds
+    }
+    pct_violation = jax.tree_util.tree_map(
+        lambda leaf, ub: leaf / ub, constraint_values, upper_bounds
+    )
+    return jax.tree_util.tree_reduce(
+        lambda x, y: jnp.maximum(x, y), pct_violation, -jnp.inf
+    )
 
 
 def plot_parameters_vs_constraint_violation(env, reward_inputs, params, save_dir):
     """Plot the parameters against the constraint violation."""
-    violation = jax.vmap(constraint_violation, in_axes=(0, None))(
+    violation = jax.vmap(max_constraint_violation_frac, in_axes=(0, None))(
         reward_inputs, env.reward_model.limits
     )
 
@@ -57,24 +62,18 @@ def plot_parameters_vs_constraint_violation(env, reward_inputs, params, save_dir
     df = pd.DataFrame(
         {key: value for key, value in normalized_params.items()}
         | {
-            "Mean constraint violation": -violation,
+            "Max. constraint violation": violation,
         }
     )
-    params_of_interest = [
-        r"$k_{dil}$",
-        r"$k_{HL}$",
-        r"$H$",
-        # r"$k_{te\_ti}$",
-    ]
-    g = sns.PairGrid(df, hue="Mean constraint violation", vars=params_of_interest)
-    g.map(sns.scatterplot, size=2, palette="RdPu")
-    norm = plt.Normalize(
-        df["Mean constraint violation"].min(), df["Mean constraint violation"].max()
+
+    # Plot polynomial regressions for all of the parameters
+    g = sns.PairGrid(
+        df, x_vars=normalized_params.keys(), y_vars=["Max. constraint violation"]
     )
-    sm = plt.cm.ScalarMappable(cmap="RdPu", norm=norm)
-    cbar = plt.colorbar(sm, ax=plt.gcf().get_axes(), shrink=0.5)
-    cbar.set_label("Mean constraint violation")
-    plt.gcf().set_size_inches(8, 6)
+    g.map(
+        sns.regplot, ci=99, scatter_kws={"s": 1, "color": "grey"}, order=2, n_boot=1_000
+    )
+    plt.gcf().set_size_inches(16, 3)
 
     # Save
     if save_dir is not None:
@@ -82,11 +81,25 @@ def plot_parameters_vs_constraint_violation(env, reward_inputs, params, save_dir
 
     plt.close()
 
+    # Also plot the empirical CDF of the constraint violation
+    sns.ecdfplot(x=violation, complementary=True, log_scale=(False, True))
+    plt.xlabel("Max. constraint violation")
+    plt.ylabel("Proportion")
+    plt.ylim(5e-4, 1.5)
+    # Add a vertical line at 0.0
+    plt.axvline(0.0, color="black", linestyle="--")
+
+    # Save
+    if save_dir is not None:
+        plt.savefig(os.path.join(save_dir, "violation_ecdf.png"))
+
+    plt.close()
+
 
 if __name__ == "__main__":
     # Hyperparams
     num_control_points = 10
-    num_eval_rollouts = 100
+    num_eval_rollouts = 1000
     simulation_steps = 100
 
     # Set the seed for reproducibility
