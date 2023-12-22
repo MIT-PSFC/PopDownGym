@@ -27,7 +27,7 @@ from scripts.es.train.es_closed_loop import (
     plot_hit_time_vs_reward,
     plot_test_set_trajectories,
 )
-
+NUM_CONTROL_POINTS = 10
 
 class CubicTrajectory(eqx.Module):
     controls: jax.Array
@@ -118,7 +118,7 @@ def train_es_open_loop(
     uncertainty_size: float,
     hidden_dims: int = 512,
     hidden_layers: int = 2,
-    num_control_points: int = 10,
+    num_control_points: int = NUM_CONTROL_POINTS,
     simulation_steps: int = 100,
     num_generations: int = 250,
     top_k: int = 5,

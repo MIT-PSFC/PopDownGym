@@ -8,6 +8,7 @@ from pop_down_gym.raptor.raptor_rd_gym import RaptorRDGym
 from pop_down_gym.raptor.utils import convert_to_df
 from pop_down_gym.pd_gym import PopDownGym
 from pop_down_gym.pd_gym_jaxrl import default_build_ppo
+from es.train.es_open_loop import CubicTrajectory, NUM_CONTROL_POINTS
 
 class PolicyInterface:
     def __init__(self, model_path, model_type):
@@ -22,7 +23,7 @@ class PolicyInterface:
         self.train_env = env.pd
         self.constraint_limits = self.train_env.reward_model.limits
         if model_type == "PPO_OSO":
-            def model_fn(obs):
+            def model_fn(obs, t=None):
                 obs = self.train_env.flatten_obs(obs)
                 constraint_shifts = jnp.zeros(8)
                 for key, val in shift_dict.items():
@@ -37,7 +38,7 @@ class PolicyInterface:
                 return unnormalized_action
             self.model_fn = model_fn
         elif model_type == "BASELINE":
-            def model_fn(obs):
+            def model_fn(obs, t=None):
                 unnormalized_action = {
                     "dIp_dt": -2.0,
                     "dPaux_dt": -2,
@@ -46,6 +47,9 @@ class PolicyInterface:
                 }
                 return unnormalized_action
             self.model_fn = model_fn
+        elif model_type == "ES_OPENLOOP_DAWSON":
+            traj = CubicTrajectory(jax.random.PRNGKey(0), NUM_CONTROL_POINTS, env.n_actions, self.train_env.time_limit)
+            self.model_fn = lambda obs, t: self.train_env.dictify_and_unnormalize_action(traj(jnp.array(t)))
         else:
             raise ValueError("model_type must be one of PPO_SB3, ES_DAWSON, PPO_OSO")
         
@@ -57,9 +61,9 @@ class PolicyInterface:
             return env
         return build_env
     
-    def state_to_action(self, train_env_state):
+    def state_to_action(self, train_env_state, t):
         obs = self.train_env.state_to_obs(train_env_state)
-        action = self.model_fn(obs)
+        action = self.model_fn(obs, t)
         return action
     
     def step_train_env(self, action):
@@ -80,7 +84,7 @@ def run_with_raptor_loop(raptor_gym, policy_interface, max_steps = 140, smooth_l
         # We have reached the goal.
         if obs_for_pd_gym["Ip_MA"] < 2.0:
             break
-        unnormalized_action = policy_interface.state_to_action(obs_for_pd_gym)
+        unnormalized_action = policy_interface.state_to_action(obs_for_pd_gym, t=raptor_gym.time)
         
         raptor_action_input = {
             "dIp_dt": 1e6 * unnormalized_action["dIp_dt"],
@@ -95,9 +99,12 @@ def run_with_raptor_loop(raptor_gym, policy_interface, max_steps = 140, smooth_l
 
         # Execute the smoothed action.
         raptor_action_input_smoothed = jax.tree_map(lambda x: jnp.mean(x), action_buffer_tree_transposed)
-        raptor_gym.step(raptor_action_input_smoothed)
-        logged_actions.append({"time": raptor_gym.time, "gs": obs_for_pd_gym["gs"], "Paux": obs_for_pd_gym["Paux"], **raptor_action_input_smoothed})
-    
+        try:
+            raptor_gym.step(raptor_action_input_smoothed)
+            logged_actions.append({"time": raptor_gym.time, "gs": obs_for_pd_gym["gs"], "Paux": obs_for_pd_gym["Paux"], **raptor_action_input_smoothed})
+        except:
+            print("Raptor step failed, exiting.")
+            break
     raptor_out = raptor_gym.raptor_out()
     return raptor_out, logged_actions
 
@@ -108,7 +115,7 @@ def run_with_raptor_loop(raptor_gym, policy_interface, max_steps = 140, smooth_l
 def main(model_path, model_type, raptor_path):
     policy_interface = PolicyInterface(model_path=model_path, model_type=model_type)
     gym_dt = policy_interface.train_env.dt
-    raptor_dt = 0.01
+    raptor_dt = 0.005
 
     
     raptor_steps_per_gym_step = gym_dt / raptor_dt

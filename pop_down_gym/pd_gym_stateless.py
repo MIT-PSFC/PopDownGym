@@ -135,6 +135,21 @@ class PopDownGymStateless:
 
         return random_params, state, self.state_to_obs(state), info
 
+    def dictify_action(self, action)->dict:
+        """Convert the action to a dictionary.
+
+        Args:
+            action (jnp.ndarray): _description_
+
+        Returns:
+            dict: _description_
+        """
+        action = {
+            action_name: action[i]
+            for i, action_name in enumerate(self.action_ranges.keys())
+        }
+        return action
+
     def dictify_and_unnormalize_action(self, action) -> dict:
         """Given an action sampled from the normalized action space, unnormalize it.
 
@@ -144,10 +159,7 @@ class PopDownGymStateless:
         Returns:
             dict: _description_
         """
-        action = {
-            action_name: action[i]
-            for i, action_name in enumerate(self.action_ranges.keys())
-        }
+        action = self.dictify_action(action)
         for i, (action_name, action_val) in enumerate(action.items()):
             action_space_range = (
                 self.action_space[0][i],
