@@ -9,7 +9,7 @@ from pop_down_gym.constants import ShotConstants
 from plot_utils.plot_utils import get_constr_labels_mathtext_dict, get_action_labels_mathtext_dict, setup_nature_style
 
 
-def plot_df(df, constraint_limits, fig_path, title=None):
+def plot_df(df, constraint_limits, fig_path, title, policy_name):
 
     Ip_MA_tgt = 2.0
 
@@ -22,7 +22,7 @@ def plot_df(df, constraint_limits, fig_path, title=None):
         "Wdot_mag": [-1.42e06, 8e07],
         "beta_n": [1.25e-03, 3.00e-02],
         "beta_p": [6.96e-02, 4.57e-01],
-        "li": [3.36e-01, 3.10e00],
+        "li": [3.36e-01, 4.0e00],
         "ng_frac": [0.0, 8.20e-01],
         "shafranov_coeff": [1.95, 4.05],
         "iota95": [0.05, 0.28],
@@ -72,7 +72,7 @@ def plot_df(df, constraint_limits, fig_path, title=None):
         ax.set_ylabel(action_labels_mathtext[var])
     axs[0].set_title("Action Trajectories", fontsize=14)
     axs[-1].set_xlabel("Time (s)")
-    fig_main.savefig(fig_path / "sim2sim.pdf", bbox_inches="tight")
+    fig_main.savefig(fig_path / f"sim2sim_{policy_name}.pdf", bbox_inches="tight")
     plt.show()
 
 def process_df(df):
@@ -127,11 +127,12 @@ def process_df(df):
 
 @click.command()
 @click.option("--pkl_path", type=str, default=os.path.join(os.path.dirname(__file__), "../tmp/sim2sim_PPO_OSO.pkl"))
-def main(pkl_path):
+@click.option("--policy_name", type=str, default="es_openloop")
+def main(pkl_path, policy_name):
     pkl_path = pathlib.Path(pkl_path)
     df = pd.read_pickle(pkl_path)
     df = process_df(df)
-    plot_df(df, df.attrs['constraint_limits'], pkl_path.parent, title="RL Controller + Raptor")
+    plot_df(df, df.attrs['constraint_limits'], pkl_path.parent, title="RL Controller + Raptor", policy_name=policy_name)
     
 if __name__ == "__main__":
     main()

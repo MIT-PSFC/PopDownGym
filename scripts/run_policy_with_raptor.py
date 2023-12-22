@@ -4,24 +4,29 @@ import jax
 import jax.numpy as jnp
 import pandas as pd
 import pop_down_gym
+import equinox as eqx
 from pop_down_gym.raptor.raptor_rd_gym import RaptorRDGym
 from pop_down_gym.raptor.utils import convert_to_df
-from pop_down_gym.pd_gym import PopDownGym
+from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from pop_down_gym.pd_gym_jaxrl import default_build_ppo
 from es.train.es_open_loop import CubicTrajectory, NUM_CONTROL_POINTS
 
 class PolicyInterface:
     def __init__(self, model_path, model_type):
         self.model_type = model_type
-        shift_dict = {
-            "beta_n": -1.0,
-            "li": 0.0,
-            "beta_p": -0.6,
-            "ng_frac": -0.9,
-        }
-        ppo, env, offset_dict, tmp_dir = default_build_ppo(shift_dict)
-        self.train_env = env.pd
-        self.constraint_limits = self.train_env.reward_model.limits
+        if model_type=="PPO_OSO" or model_type == "BASELINE":
+            shift_dict = {
+                "beta_n": -1.0,
+                "li": 0.0,
+                "beta_p": -0.6,
+                "ng_frac": -0.9,
+            }
+            ppo, env, offset_dict, tmp_dir = default_build_ppo(shift_dict)
+            self.train_env = env.pd
+            self.constraint_limits = self.train_env.reward_model.limits
+        else:
+            self.train_env = PopDownGymStateless.create_env()
+            self.constraint_limits = self.train_env.reward_model.limits
         if model_type == "PPO_OSO":
             def model_fn(obs, t=None):
                 obs = self.train_env.flatten_obs(obs)
@@ -48,19 +53,15 @@ class PolicyInterface:
                 return unnormalized_action
             self.model_fn = model_fn
         elif model_type == "ES_OPENLOOP_DAWSON":
-            traj = CubicTrajectory(jax.random.PRNGKey(0), NUM_CONTROL_POINTS, env.n_actions, self.train_env.time_limit)
+            traj = CubicTrajectory(jax.random.PRNGKey(0), NUM_CONTROL_POINTS, self.train_env.n_actions, self.train_env.time_limit)
+            traj = eqx.tree_deserialise_leaves(
+                os.path.join(model_path, "uncertainty_1.00/lr_1.0e-01/best_trajectory.eqx"),
+                traj,
+            )
             self.model_fn = lambda obs, t: self.train_env.dictify_and_unnormalize_action(traj(jnp.array(t)))
         else:
             raise ValueError("model_type must be one of PPO_SB3, ES_DAWSON, PPO_OSO")
         
-    @staticmethod
-    def get_env_builder(seed):
-        def build_env():
-            env = PopDownGym.create_env()
-            env.reset(seed=seed)
-            return env
-        return build_env
-    
     def state_to_action(self, train_env_state, t):
         obs = self.train_env.state_to_obs(train_env_state)
         action = self.model_fn(obs, t)
