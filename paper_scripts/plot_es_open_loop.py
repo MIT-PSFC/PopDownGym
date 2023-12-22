@@ -14,7 +14,7 @@ from scripts.es.train.es_closed_loop import plot_test_set_trajectories
 from scripts.es.train.es_open_loop import CubicTrajectory, rollout_open_loop
 
 
-def max_constraint_violation(reward_inputs, upper_bounds):
+def constraint_violation(reward_inputs, upper_bounds):
     """Compute the maximum constraint violation."""
     total_violation = 0.0
     for key in upper_bounds:
@@ -28,7 +28,7 @@ def max_constraint_violation(reward_inputs, upper_bounds):
 
 def plot_parameters_vs_constraint_violation(env, reward_inputs, params, save_dir):
     """Plot the parameters against the constraint violation."""
-    violation = jax.vmap(max_constraint_violation, in_axes=(0, None))(
+    violation = jax.vmap(constraint_violation, in_axes=(0, None))(
         reward_inputs, env.reward_model.limits
     )
 
@@ -57,17 +57,24 @@ def plot_parameters_vs_constraint_violation(env, reward_inputs, params, save_dir
     df = pd.DataFrame(
         {key: value for key, value in normalized_params.items()}
         | {
-            "Max. constraint violation": violation,
+            "Mean constraint violation": -violation,
         }
     )
     params_of_interest = [
         r"$k_{dil}$",
         r"$k_{HL}$",
         r"$H$",
-        r"$k_{te\_ti}$",
+        # r"$k_{te\_ti}$",
     ]
-    g = sns.PairGrid(df, hue="Max. constraint violation", vars=params_of_interest)
-    g.map(sns.scatterplot, size=2)
+    g = sns.PairGrid(df, hue="Mean constraint violation", vars=params_of_interest)
+    g.map(sns.scatterplot, size=2, palette="RdPu")
+    norm = plt.Normalize(
+        df["Mean constraint violation"].min(), df["Mean constraint violation"].max()
+    )
+    sm = plt.cm.ScalarMappable(cmap="RdPu", norm=norm)
+    cbar = plt.colorbar(sm, ax=plt.gcf().get_axes(), shrink=0.5)
+    cbar.set_label("Mean constraint violation")
+    plt.gcf().set_size_inches(8, 6)
 
     # Save
     if save_dir is not None:
