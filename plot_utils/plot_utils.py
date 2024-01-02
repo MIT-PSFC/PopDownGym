@@ -1,6 +1,5 @@
 import pathlib
 
-import ipdb
 import matplotlib.font_manager as font_manager
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,11 +70,12 @@ def get_constr_labels_mathtext_dict():
 
 def get_action_labels_mathtext_dict():
     return {
-        "dIp_dt" : r"$\frac{d}{dt} I_p\ \mathrm{(MA\/s^{-1})}$", 
-        "Paux" : r"$P_{\mathrm{aux}}\ \mathrm{(MW)}$", 
-        "fueling19": r"$u_{fuel,19}\ \mathrm{(10^{19}s^{-1})}$", 
+        "dIp_dt": r"$\frac{d}{dt} I_p\ \mathrm{(MA\/s^{-1})}$",
+        "Paux": r"$P_{\mathrm{aux}}\ \mathrm{(MW)}$",
+        "fueling19": r"$u_{fuel,19}\ \mathrm{(10^{19}s^{-1})}$",
         "gs": r"$g_s\ \mathrm{(s^{-1})}$",
     }
+
 
 def get_env_params_mathtext_dict():
     return {

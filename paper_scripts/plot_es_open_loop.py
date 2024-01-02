@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from plot_utils.plot_utils import setup_nature_style
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 from scripts.es.train.es_closed_loop import plot_test_set_trajectories
 from scripts.es.train.es_open_loop import CubicTrajectory, rollout_open_loop
@@ -112,6 +113,7 @@ if __name__ == "__main__":
 
     # Plot
     plt.style.use("ggplot")
+    setup_nature_style()
     plot_test_set_trajectories(
         env,
         t_test,
