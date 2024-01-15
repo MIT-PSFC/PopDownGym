@@ -16,9 +16,10 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+import wandb
 from tqdm import tqdm
 
-import wandb
+from plot_utils.plot_utils import get_constr_labels_mathtext_dict, setup_nature_style
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 
@@ -91,6 +92,8 @@ def rollout_closed_loop(prng_key, env, policy, steps=100):
 def plot_action_trajectory(
     env, t, action_trajectory, save_path=None, commit_wandb=False
 ):
+    plt.style.use("ggplot")
+    setup_nature_style()
     action_lims = {
         "dIp_dt": [-3.0, -0.5],
         "dPaux_dt": [-5.0, 5.0],
@@ -135,12 +138,14 @@ def plot_action_trajectory(
 def plot_test_set_trajectories(
     env, t, reward_inputs, save_path=None, commit_wandb=False, use_wandb=True
 ):
+    plt.style.use("ggplot")
+    setup_nature_style()
     constr_labels = PopDownGymStateless.constr_labels()
     nconstr = len(constr_labels)
     ylims = {
         "Ip_MA": [1.2e00, 9.18e00],
         "Bv_dot_mag": [5.14e-02, 4.00e-01],
-        "Wdot_mag": [-1.42e06, 4.93e07],
+        "Wdot_mag": [-1.42, 4.93e01],
         "beta_n": [1.25e-03, 1.17e-02],
         "beta_p": [6.96e-02, 4.57e-01],
         "li": [3.36e-01, 4.19e00],
@@ -149,19 +154,12 @@ def plot_test_set_trajectories(
         "iota95": [0.05, 0.25],
     }
     constr_ub = env.reward_model.limits
+    # Convert Wdot_mag to MW.
+    constr_ub["Wdot_mag"] /= 1e6
+    reward_inputs["Wdot_mag"] /= 1e6
     Ip_MA_tgt = 2.0
 
-    axis_labels_latex = {
-        "Ip_MA": r"$I_p$ (MA)",
-        "Bv_dot_mag": r"$\frac{d}{dt}B_v$ (Ts$^{-1}$)",
-        "Wdot_mag": r"$\frac{d}{dt}W$ (Js$^{-1}$)",
-        "beta_n": r"$\beta_n$",
-        "beta_p": r"$\beta_p$",
-        "li": r"$l_i$",
-        "ng_frac": r"$n_{g, frac}$",
-        "shafranov_coeff": r"$\Gamma$",
-        "iota95": r"$\iota_{95}$",
-    }
+    axis_labels_latex = get_constr_labels_mathtext_dict()
 
     figsize = np.array([6, 1.2 * nconstr])
     fig, axes = plt.subplots(
@@ -208,6 +206,8 @@ def plot_test_set_trajectories(
 
 
 def plot_hit_time_vs_reward(t, hit_goal, rewards, save_path=None, commit_wandb=False):
+    plt.style.use("ggplot")
+    setup_nature_style()
     episode_lengths = jnp.max(t, axis=-1)
     hit_goal_at_episode_end = hit_goal[:, -1]
     fig = plt.figure(figsize=(6, 6), dpi=350)

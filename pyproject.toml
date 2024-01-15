@@ -31,6 +31,7 @@ einops = "^0.7.0"
 netcdf4 = "^1.6.5"
 orbax-checkpoint = "^0.4.1"
 typing-extensions = "^4.9.0"
+click = "^8.1.7"
 
 [[tool.poetry.source]]
 name = "jax_cuda"

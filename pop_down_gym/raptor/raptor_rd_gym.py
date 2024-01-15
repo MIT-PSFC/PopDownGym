@@ -1,15 +1,18 @@
+"""
+Gym-like interface into RAPTOR via matlabengine.
+Unfortunately, RAPTOR configured to SPARC
+is not availble as open-source software at the time of this work.
+"""
+import numpy as np
+
 from pop_down_gym.raptor.init_raptor import init_matlab, init_sparc_rd
 from pop_down_gym.raptor.utils import (
-    concat_simres,
     VWrapper,
+    concat_simres,
     numpy_to_matlab,
-    update_ustep,
     to_numpy,
+    update_ustep,
 )
-import numpy as np
-from pop_down_gym.raptor.init_raptor import init_matlab, init_sparc_rd
-from pop_down_gym.raptor.utils import (VWrapper, concat_simres, numpy_to_matlab,
-                                update_ustep)
 
 
 class ParticleModel:
@@ -147,7 +150,7 @@ class RaptorRDGym:
             tau_n_factor=9.0,
             main_ion_dilution=ni_vol_avg / ne_vol_avg,
         )
-        self.Paux_max = 25e6 # TODO(allenw): hard-coded.
+        self.Paux_max = 25e6  # TODO(allenw): hard-coded.
         self.currently_h_mode = True
 
         # Do a quick test that the line average calculations work..
@@ -193,7 +196,9 @@ class RaptorRDGym:
         vc_minus_vb = -Li_dot * Ip[1:] - Ip_dot * Li[1:]
 
         obs = {
-            "li": raptor_out["li3"][0][-1], # li = li3 under the assumption that the plasma is perfectly toroidal.
+            "li": raptor_out["li3"][0][
+                -1
+            ],  # li = li3 under the assumption that the plasma is perfectly toroidal.
             "Ip_MA": 1e-6 * Ip[-1],
             # Take the mean over the last "rspgs" steps to avoid
             # numerical issues.
@@ -224,23 +229,43 @@ class RaptorRDGym:
 
         # Raptor includes Prad is Ploss, but the relevant quantity for the backtransition is generally
         # just loss through conduction. Thus, we subtract Prad from Ploss.
-        Ploss = np.mean(out_prev['Ploss'][0][-self.rspgs:]) - np.mean(out_prev['Prad'][0][-self.rspgs:])
+        Ploss = np.mean(out_prev["Ploss"][0][-self.rspgs :]) - np.mean(
+            out_prev["Prad"][0][-self.rspgs :]
+        )
 
         # Transition over one dt.
         n_raptor_steps_transition = int(self.raptor_dt * self.rspgs / self.raptor_dt)
         if Ploss > PHL and self.currently_h_mode:
             pass
-        elif Ploss<=PHL and self.currently_h_mode:
-            self.vwrapper.hmode[self.raptor_iter : self.raptor_iter + n_raptor_steps_transition] = np.linspace(1, 0, n_raptor_steps_transition)
+        elif Ploss <= PHL and self.currently_h_mode:
+            self.vwrapper.hmode[
+                self.raptor_iter : self.raptor_iter + n_raptor_steps_transition
+            ] = np.linspace(1, 0, n_raptor_steps_transition)
             self.vwrapper.hmode[self.raptor_iter + n_raptor_steps_transition :] = 0
 
-            te_bc_ramp = np.linspace(self.config["hmode"]["params"]["te_rhoped"], self.config["hmode"]["params"]["te_rhoedge"], n_raptor_steps_transition)
-            self.vwrapper.te_bc[self.raptor_iter : self.raptor_iter + n_raptor_steps_transition] = te_bc_ramp
-            self.vwrapper.te_bc[self.raptor_iter + n_raptor_steps_transition :] = self.config["hmode"]["params"]["te_rhoedge"]
+            te_bc_ramp = np.linspace(
+                self.config["hmode"]["params"]["te_rhoped"],
+                self.config["hmode"]["params"]["te_rhoedge"],
+                n_raptor_steps_transition,
+            )
+            self.vwrapper.te_bc[
+                self.raptor_iter : self.raptor_iter + n_raptor_steps_transition
+            ] = te_bc_ramp
+            self.vwrapper.te_bc[
+                self.raptor_iter + n_raptor_steps_transition :
+            ] = self.config["hmode"]["params"]["te_rhoedge"]
 
-            ti_bc_ramp = np.linspace(self.config["hmode"]["params"]["ti_rhoped"], self.config["hmode"]["params"]["ti_rhoedge"], n_raptor_steps_transition)
-            self.vwrapper.ti_bc[self.raptor_iter : self.raptor_iter + n_raptor_steps_transition] = ti_bc_ramp
-            self.vwrapper.ti_bc[self.raptor_iter + n_raptor_steps_transition :] = self.config["hmode"]["params"]["ti_rhoedge"]
+            ti_bc_ramp = np.linspace(
+                self.config["hmode"]["params"]["ti_rhoped"],
+                self.config["hmode"]["params"]["ti_rhoedge"],
+                n_raptor_steps_transition,
+            )
+            self.vwrapper.ti_bc[
+                self.raptor_iter : self.raptor_iter + n_raptor_steps_transition
+            ] = ti_bc_ramp
+            self.vwrapper.ti_bc[
+                self.raptor_iter + n_raptor_steps_transition :
+            ] = self.config["hmode"]["params"]["ti_rhoedge"]
         else:
             pass
 
@@ -279,7 +304,9 @@ class RaptorRDGym:
         ne_line_avg = 1e19 * self.particle_model.ne19_line_average(Vp)
         ni_line_avg = 1e19 * self.particle_model.ni19_line_average(Vp)
 
-        self.Ustep = update_ustep(self.Ustep, dIp_dt, dPaux_dt, self.raptor_dt, Paux_max=self.Paux_max)
+        self.Ustep = update_ustep(
+            self.Ustep, dIp_dt, dPaux_dt, self.raptor_dt, Paux_max=self.Paux_max
+        )
 
         # Get the geometry for this step.
         # Assume constant gs for each step.
@@ -327,8 +354,8 @@ class RaptorRDGym:
             self.simres, self.model, self.params, nargout=1
         )
         return raptor_out
-    
+
     def save_out(self, path):
         raptor_out = self.raptor_out()
-        self.eng_handle.workspace['out'] = raptor_out
-        self.eng_handle.save(path, 'out', nargout=0)
+        self.eng_handle.workspace["out"] = raptor_out
+        self.eng_handle.save(path, "out", nargout=0)

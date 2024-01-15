@@ -9,7 +9,11 @@ import typer
 from matplotlib.collections import LineCollection
 
 from jaxrl.helpers import get_default_rew_bounds
-from plot_utils.plot_utils import get_constr_labels_mathtext, get_segs, setup_nature_style
+from plot_utils.plot_utils import (
+    get_constr_labels_mathtext,
+    get_segs,
+    setup_nature_style,
+)
 from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 
@@ -28,7 +32,7 @@ def main(pkl_path: pathlib.Path):
     ylims = {
         "Ip_MA": [1.2e00, 9.18e00],
         "Bv_dot_mag": [5.14e-02, 3.70e-01],
-        "Wdot_mag": [-1.42e06, 5.90e07],
+        "Wdot_mag": [-1.42, 5.90e01],
         "beta_n": [1.25e-03, 3.00e-02],
         "beta_p": [6.96e-02, 4.57e-01],
         "li": [3.36e-01, 3.10e00],
@@ -61,7 +65,12 @@ def main(pkl_path: pathlib.Path):
     subfigs = fig_main.subfigures(1, 2, wspace=0.1)
 
     # Get the number of timesteps of the traj that lasts the longest.
-    T_max = max([np.argmin(dict_data["data"].bT_valid_mask, axis=1).max() for dict_data in dict_all])
+    T_max = max(
+        [
+            np.argmin(dict_data["data"].bT_valid_mask, axis=1).max()
+            for dict_data in dict_all
+        ]
+    )
 
     for jj, dict_data in enumerate(dict_all[::-1]):
         fig = subfigs[jj]
@@ -74,7 +83,16 @@ def main(pkl_path: pathlib.Path):
         # Hide the constraint ax for li.
         [ax.set_visible(False) for ax in axes[:, 1]]
         axes[0, 2].set_visible(False)
-        data, offset, constr_ub = dict_data["data"], dict_data["offset"], dict_data["val"]
+        data, offset, constr_ub = (
+            dict_data["data"],
+            dict_data["offset"],
+            dict_data["val"],
+        )
+
+        # Convert to MW.
+        data.bT_info["reward_inputs"]["Wdot_mag"] /= 1e6
+        constr_ub["Wdot_mag"] /= 1e6
+
         print("constr_ub:\n{}".format(constr_ub))
 
         # Plot trajs.
@@ -97,7 +115,13 @@ def main(pkl_path: pathlib.Path):
                 # yrange = ymax - ymin
                 # ax.set_ylim(ymin - 0.1 * yrange, ymax + 0.1 * yrange)
                 # ymin, ymax = ax.get_ylim()
-                ax.axhspan(min(ymax, constr_ub[label]), ymax, fc="C0", ec="none", alpha=constr_alpha)
+                ax.axhspan(
+                    min(ymax, constr_ub[label]),
+                    ymax,
+                    fc="C0",
+                    ec="none",
+                    alpha=constr_alpha,
+                )
 
             if label == "Ip_MA":
                 ax.axhspan(ymin, Ip_MA_tgt, fc="C5", ec="none", alpha=constr_alpha)
@@ -108,26 +132,47 @@ def main(pkl_path: pathlib.Path):
             if label == "Ip_MA":
                 continue
 
-            ax.tick_params(axis="x", which="both", bottom=False, top=False, labelbottom=False)
+            ax.tick_params(
+                axis="x", which="both", bottom=False, top=False, labelbottom=False
+            )
             [i.set_visible(True) for i in ax.spines.values()]
             ax.set_ylim(rew_min[label], rew_max[label])
             ax.set_xlim(0, 1)
 
             val = constr_ub[label]
             rew_ub = rew_max[label]
-            rect = plt.Rectangle((0, val), 1, rew_ub - val, color="C0", alpha=constr_alpha)
+            rect = plt.Rectangle(
+                (0, val), 1, rew_ub - val, color="C0", alpha=constr_alpha
+            )
             ax.add_patch(rect)
 
         # axes[1, 1].set_title("Conditioned\nConstraints", fontsize=12)
         title = "Conditioned\nConstraints"
         offset = transforms.ScaledTranslation(-4 / 72, 7 / 72, fig.dpi_scale_trans)
         trans = transforms.ScaledTranslation(0.5, 1.0, axes[1, 2].transAxes) + offset
-        fig.text(0.0, 0.0, title, transform=trans, ha="center", va="bottom", color="#555555", fontsize=12)
+        fig.text(
+            0.0,
+            0.0,
+            title,
+            transform=trans,
+            ha="center",
+            va="bottom",
+            fontsize=12,
+        )
 
         panel_letter = ["a", "b"][jj]
         offset = transforms.ScaledTranslation(0 / 72, 0 / 72, fig.dpi_scale_trans)
         trans = transforms.ScaledTranslation(0.0, 1.0, fig.transSubfigure) + offset
-        fig.text(0, 0, panel_letter, transform=trans, ha="right", va="bottom", weight="bold", fontsize=14)
+        fig.text(
+            0,
+            0,
+            panel_letter,
+            transform=trans,
+            ha="right",
+            va="bottom",
+            weight="bold",
+            fontsize=14,
+        )
 
         axes[-1, 0].set_xlim(0, T_max * dt)
         txt: plt.Text = axes[-1, 0].set_xlabel("Time (s)")

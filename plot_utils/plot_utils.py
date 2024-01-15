@@ -29,6 +29,7 @@ def setup_nature_style():
         font_manager.fontManager.addfont(helvetica_path)
         helvetica_path = pathlib.Path(__file__).parent.parent / "tmp/helvetica-bold.ttf"
         font_manager.fontManager.addfont(helvetica_path)
+        # Warning.
 
     params = {
         "savefig.transparent": True,
@@ -59,7 +60,7 @@ def get_constr_labels_mathtext_dict():
     return {
         "Ip_MA": r"$I_p\ \mathrm{(MA)}$",
         "Bv_dot_mag": r"$\frac{d}{dt} B_v\ \mathrm{(T\/s^{-1})}$",
-        "Wdot_mag": r"$\frac{d}{dt} W\ \mathrm{(MJ\/s^{-1})}$",
+        "Wdot_mag": r"$\frac{d}{dt} W_{th}\ \mathrm{(MW)}$",
         "beta_n": r"$\beta_n$",
         "beta_p": r"$\beta_p$",
         "li": r"$l_i$",
@@ -71,11 +72,12 @@ def get_constr_labels_mathtext_dict():
 
 def get_action_labels_mathtext_dict():
     return {
-        "dIp_dt" : r"$\frac{d}{dt} I_p\ \mathrm{(MA\/s^{-1})}$", 
-        "Paux" : r"$P_{\mathrm{aux}}\ \mathrm{(MW)}$", 
-        "fueling19": r"$u_{fuel,19}\ \mathrm{(10^{19}s^{-1})}$", 
+        "dIp_dt": r"$\frac{d}{dt} I_p\ \mathrm{(MA\/s^{-1})}$",
+        "Paux": r"$P_{\mathrm{aux}}\ \mathrm{(MW)}$",
+        "fueling19": r"$u_{fuel,19}\ \mathrm{(10^{19}s^{-1})}$",
         "gs": r"$g_s\ \mathrm{(s^{-1})}$",
     }
+
 
 def get_env_params_mathtext_dict():
     return {
