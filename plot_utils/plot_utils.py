@@ -59,7 +59,8 @@ def get_constr_labels_mathtext_dict():
     return {
         "Ip_MA": r"$I_p\ \mathrm{(MA)}$",
         "Bv_dot_mag": r"$\frac{d}{dt} B_v\ \mathrm{(T\/s^{-1})}$",
-        "Wdot_mag": r"$\frac{d}{dt} W\ \mathrm{(MJ\/s^{-1})}$",
+        # "Wdot_mag": r"$\frac{d}{dt} W\ \mathrm{(MJ\/s^{-1})}$",
+        "Wdot_mag": r"$\frac{d}{dt} W\ \mathrm{(MW)}$",
         "beta_n": r"$\beta_n$",
         "beta_p": r"$\beta_p$",
         "li": r"$l_i$",
