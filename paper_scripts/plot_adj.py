@@ -15,6 +15,11 @@ from pop_down_gym.pd_gym_stateless import PopDownGymStateless
 
 def main(pkl_path: pathlib.Path):
     rew_centers, shift_ranges, rew_min, rew_max = get_default_rew_bounds()
+    rew_centers["Wdot_mag"] = np.array(rew_centers["Wdot_mag"]) * 1e-6
+    shift_ranges["Wdot_mag"] = np.array(shift_ranges["Wdot_mag"]) * 1e-6
+    rew_min["Wdot_mag"] = np.array(rew_min["Wdot_mag"]) * 1e-6
+    rew_max["Wdot_mag"] = np.array(rew_max["Wdot_mag"]) * 1e-6
+
     Ip_MA_tgt = 2.0
 
     plot_dir = pkl_path.parent
@@ -36,6 +41,8 @@ def main(pkl_path: pathlib.Path):
         "shafranov_coeff": [1.95, 4.05],
         "iota95": [0.05, 0.28],
     }
+
+    ylims["Wdot_mag"] = np.array(ylims["Wdot_mag"]) * 1e-6
 
     dt = 0.05
 
@@ -77,11 +84,17 @@ def main(pkl_path: pathlib.Path):
         data, offset, constr_ub = dict_data["data"], dict_data["offset"], dict_data["val"]
         print("constr_ub:\n{}".format(constr_ub))
 
+        constr_ub["Wdot_mag"] *= 1e-6
+
         # Plot trajs.
         for ii, ax in enumerate(axes[:, 0]):
             label = constr_labels[ii]
 
             bT_rew_input = data.bT_info["reward_inputs"][label]
+
+            if label == "Wdot_mag":
+                bT_rew_input = bT_rew_input * 1e-6
+
             b_segs = get_segs(bT_rew_input, data.bT_valid_mask, dt)
             col = LineCollection(b_segs, color="C1", lw=0.5, alpha=0.4)
             ax.add_collection(col)
@@ -122,7 +135,7 @@ def main(pkl_path: pathlib.Path):
         title = "Conditioned\nConstraints"
         offset = transforms.ScaledTranslation(-4 / 72, 7 / 72, fig.dpi_scale_trans)
         trans = transforms.ScaledTranslation(0.5, 1.0, axes[1, 2].transAxes) + offset
-        fig.text(0.0, 0.0, title, transform=trans, ha="center", va="bottom", color="#555555", fontsize=12)
+        fig.text(0.0, 0.0, title, transform=trans, ha="center", va="bottom", color="0.0", fontsize=12)
 
         panel_letter = ["a", "b"][jj]
         offset = transforms.ScaledTranslation(0 / 72, 0 / 72, fig.dpi_scale_trans)

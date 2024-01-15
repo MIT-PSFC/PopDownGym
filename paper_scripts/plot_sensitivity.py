@@ -63,7 +63,7 @@ def main():
             C_vals, C_data = dict_processed[perturb_label]
 
             if perturb_label == "Wdot_mag":
-                C_vals = C_vals / 1e6
+                C_vals = C_vals * 1e-6
 
             C_mean, C_mean_lo, C_mean_hi = C_data[:, 0, 0], C_data[:, 0, 1], C_data[:, 0, 2]
             C_q05, C_q05_lo, C_q05_hi = C_data[:, 1, 0], C_data[:, 1, 1], C_data[:, 1, 2]
